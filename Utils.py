@@ -1,0 +1,46 @@
+import math 
+import random 
+
+def extract_loc_from_geometry(geometry):
+    idx1 = geometry.index('(')
+    idx2 = geometry.index(')')
+    loc = geometry[idx1+1:idx2]
+    loc = loc.split(' ')
+    if loc[0].find('.') < 0:
+        loc[0] = loc[0][:4]+'.'+loc[0][4:]
+    if loc[1].find('.') < 0:
+        loc[1] = loc[1][:2]+'.'+loc[1][2:]
+    loc[0] = (float)(loc[0])
+    loc[1] = (float)(loc[1])
+    return loc
+
+def map_dist(lon1, lat1, lon2, lat2):
+    #distance between 2 points on sphere surface, in meter
+    if lon1 == lon2 and lat1 == lat2:
+        return 0
+    else:
+        try:
+            return 6378137*math.acos(math.sin(math.radians(lat1))*math.sin(math.radians(lat2))+math.cos(math.radians(lat1))*math.cos(math.radians(lat2))*math.cos(math.radians(lon2-lon1)))
+        except Exception,ex:
+            print Exception,":",ex
+            return 1000000
+        
+def bearing(Longitude1, Latitude1, Longitude2, Latitude2):
+    x = math.sin(Longitude2 - Longitude1) * math.cos(Latitude2)
+    y = math.cos(Latitude1) * math.sin(Latitude2) - math.sin(Latitude1) * math.cos(Latitude2) * math.cos(Longitude2 - Longitude1)
+    heading = math.atan2(x, y) * 180 / 3.14159265
+    if heading <0:
+        heading += 360
+    
+    return heading
+
+def is_in_bbox(lon1, lat1, lon2, lat2, lon, lat, direction):
+    mlon = min(lon1, lon2)
+    mlat = min(lat1, lat2)
+    xlon = max(lon1, lon2)
+    xlat = max(lat1, lat2)
+    if direction == 0 or direction ==1:
+        return lat >= mlat and lat <= xlat
+    else:
+        return lon >= mlon and lon <= xlon
+
