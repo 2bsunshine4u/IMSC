@@ -112,3 +112,21 @@ class Map(object):
         print "Section filling finished"
         
         return path
+
+if __name__ == '__main__':
+    lamap = Map()
+    lamap.init_db()
+    
+    road_name = "I-110"
+    function_class_numeric = 1
+    direction = 0    #0:N 1:S 2:E 3:W
+    start_loc = (-118.280963, 34.005856)
+    end_loc = (-118.279472, 34.018482)
+    
+    link_loc = lamap.locate_links(road_name,        function_class_numeric)
+    bearing_links = lamap.filter_bearing(link_loc, direction)
+    start_link, end_link = lamap.find_start_end_link(link_loc, bearing_links, start_loc[0], start_loc[1], end_loc[0], end_loc[1])
+    path = lamap.fill_path(link_loc, bearing_links, start_link, end_link, direction)
+    
+    print path
+    

@@ -7,7 +7,7 @@ class Pattern(object):
     def __init__(self):
         self.init_db()
         
-        self.sensor_data = {}
+        self.road_link_loc = {}
         
     def init_db(self):
         print "Connecting to database ......"
@@ -25,7 +25,10 @@ class Pattern(object):
     
         print "Begin locating links on " + road_name
         
-        link_loc = {}
+        if road_name in self.road_link_loc:
+            return self.road_link_loc[road_name]
+        else:
+            link_loc = {}
     
         if function_class_numeric == 1:
             sql = "select link_id, from_node_id, to_node_id from links where function_class_numeric=1 and name_default like '%" + road_name + "%'"
@@ -46,7 +49,8 @@ class Pattern(object):
             
             link_loc[link_id] = (from_node_loc, to_node_loc)
 
-        
+            
+        self.road_link_loc[road_name] = link_loc       
         return link_loc
     
     def locate_sensors(self, onstreet, direction, function_class_numeric):
@@ -67,6 +71,7 @@ class Pattern(object):
     
     def map_link_sensor(self, sectionid):
     #fetch mapping information from database
+        sensor_data = {}
         print "fetching mapping information from database"
         sql = "select link_id, sensor_id from ss_sensor_mapping where section_id = 'Section " + str(sectionid) + "'"
         self.cursor.execute(sql)
@@ -76,20 +81,20 @@ class Pattern(object):
             if m[0] not in dict_link_sensor:
                 dict_link_sensor[m[0]] = []
             dict_link_sensor[m[0]].append(m[1])
-            if m[1] not in self.sensor_data:
-                self.sensor_data[m[1]] = {}
+            if m[1] not in sensor_data:
+                sensor_data[m[1]] = {}
         
-        return dict_link_sensor
+        return dict_link_sensor, sensor_data
         
     def realtime_pattern(self, road_name, function_class_numeric, direction, sectionid):
     #get realtime_pattern of section
         link_loc = lapattern.locate_links(road_name, function_class_numeric)
         sensor_loc = lapattern.locate_sensors(road_name, direction, function_class_numeric)
-        dict_link_sensor = lapattern.map_link_sensor(sectionid)
+        dict_link_sensor, sensor_data = lapattern.map_link_sensor(sectionid)
         
         start_dt = "2015-09-18 06:00:00"
         end_dt = "2015-09-24 21:00:00"
-        for sensor in self.sensor_data:
+        for sensor in sensor_data:
             print "realtime_data preprocessing of sensor", sensor
             if function_class_numeric == 1:
                 sql = "Select timestamp, speed from  sensor_data_highway where sensor_id= "+str(sensor)+" and speed > 1 and speed < 150 and STATUS_Ok=TRUE and timestamp >= '"+start_dt+"' and timestamp <= '"+end_dt+"'"
@@ -111,9 +116,9 @@ class Pattern(object):
                 str_dt = dt.strftime("%Y-%m-%d %H:%M:%S")
                 dt = datetime.datetime.strptime(str_dt, "%Y-%m-%d %H:%M:%S")
 
-                if dt not in self.sensor_data[sensor]:
-                    self.sensor_data[sensor][dt] = []
-                self.sensor_data[sensor][dt].append(speed)
+                if dt not in sensor_data[sensor]:
+                    sensor_data[sensor][dt] = []
+                sensor_data[sensor][dt].append(speed)
                         
         day_spd = {}
         for d in range(0, 7):
@@ -141,8 +146,8 @@ class Pattern(object):
                     avg_spd = []
                     for sensor in dict_link_sensor[link]: 
                         loc = sensor_loc[sensor]
-                        if dt in self.sensor_data[sensor]:
-                            s = self.sensor_data[sensor][dt]
+                        if dt in sensor_data[sensor]:
+                            s = sensor_data[sensor][dt]
                             spd = sum(s)/len(s)
                             avg_spd.append([spd, loc])
                     if len(avg_spd) == 0:
@@ -180,10 +185,9 @@ class Pattern(object):
         
         return day_spd
     
-    def historic_pattern(self, road_name, function_class_numeric, direction, sectionid):
+    def historic_pattern(self, road_name, function_class_numeric, sectionid):
         link_loc = lapattern.locate_links(road_name, function_class_numeric)
-        sensor_loc = lapattern.locate_sensors(road_name, direction, function_class_numeric)
-        dict_link_sensor = lapattern.map_link_sensor(sectionid)
+        dict_link_sensor,sensor_data = lapattern.map_link_sensor(sectionid)
         
         print "Connecting to database ......"
         his_conn_to = psycopg2.connect(host='graph-3.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='ds2015')
@@ -211,12 +215,10 @@ class Pattern(object):
             
         day_spd = {}
         for d in range(0, 7):
-            day = days[d]
             day_spd[d] = []
             for w in range(0, 60):
                 link_weight = {}
                 for link in dict_link_sensor:
-                    link_weight[link] = []
                     weight = day_link_weight[d][link][w]
                     if weight:
                         link_weight[link] = weight
@@ -234,20 +236,92 @@ class Pattern(object):
                 if total_weight >0:
                     spd = (total_len/total_weight) * 3600.0
                     day_spd[d].append(spd)
-                    print "Average speed in weight ",w,"on",days[d], "is",spd
+                    print "Average speed in timeslot ",w,"on",days[d], "is",spd
                 else:
                     day_spd[d].append(0)
-                    print "No available weight in weight",w
+                    print "No available weight in timeslot",w
                 
         his_conn_to.close()
         
         return day_spd
-
+    
+    
+    def GPS_pattern(self, road_name, function_class_numeric, sectionid):
+        link_loc = lapattern.locate_links(road_name, function_class_numeric)
+        dict_link_sensor,sensor_data = lapattern.map_link_sensor(sectionid)
+        
+        print "Connecting to database ......"
+        gps_conn_to = psycopg2.connect(host='graph-3.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='ds2015')
+        if gps_conn_to:
+            print "Connected."
+        gps_cursor = gps_conn_to.cursor()
+        
+        days = ["'monday'", "'tuesday'", "'wednesday'", "'thursday'", "'friday'", "'saturday'", "'sunday'"]
+        
+        print "gps_data preprocessing"
+        day_link_traveltime = {}
+        for d in range(0, 7):
+            day = days[d]
+            day_link_traveltime[d] = {}
+            for link in dict_link_sensor:
+                day_link_traveltime[d][link] = {}
+                sql = "select from_node_id, to_node_id from links where link_id = " + str(link)
+                self.cursor.execute(sql)
+                start_node, end_node = self.cursor.fetchall()[0]
                 
+                sql = "select time_slot, travel_time from travel_times WHERE from_node_id = " + str(start_node) + " AND to_node_id = "+str(end_node)+" AND day_of_week = "+day+"And time_slot >= 0"
+                gps_cursor.execute(sql)
+                result = gps_cursor.fetchall()
+                for time_slot, travel_time in result:
+                    print time_slot, travel_time
+                    idx = int(time_slot)
+                    day_link_traveltime[d][link][idx] = travel_time
+            
+        day_spd = {}
+        for d in range(0, 7):
+            day_spd[d] = []
+            for w in range(0, 60):
+                link_traveltime = {}
+                for link in dict_link_sensor:
+                    if w in day_link_traveltime[d][link]:
+                        traveltime = day_link_traveltime[d][link][w]
+                        link_traveltime[link] = float(traveltime)
+                        print "Traveltime on link",link,"is",traveltime
+                
+                total_len = 0
+                total_traveltime = 0
+                for link in link_traveltime:
+                    link_len = Utils.map_dist(link_loc[link][0][0], link_loc[link][0][1], link_loc[link][1][0], link_loc[link][1][1])
+                    total_len += link_len
+                    total_traveltime += link_traveltime[link]
+                
+                if total_traveltime >0:
+                    spd = (total_len/total_traveltime) * 3600.0
+                    day_spd[d].append(spd)
+                    print "Average speed in time_slot ",w,"on",days[d], "is",spd
+                else:
+                    day_spd[d].append(0)
+                    print "No available traveltime in timeslot",w
+                
+        gps_conn_to.close()
+        
+        return day_spd
+    
+    def cal_similarity(self, x, y):
+            p = []
+            for i in range(0, 60):
+                avg = (x[i] + y[i]) / 2.0
+                dist = abs(x[i] - y[i]) / avg
+                p.append(1.0 - dist)
+            
+            point = (sum(p)/len(p)) * 10.0
+            
+            return float(point)
         
     
 if __name__ == '__main__':
     lapattern = Pattern()
+    fileout = open('pattern.txt', 'w')
     
     #First Highway Section
     sectionid = 1
@@ -256,12 +330,16 @@ if __name__ == '__main__':
     direction = 2    #0:N 1:S 2:E 3:W
     
     rt_pt = lapattern.realtime_pattern(road_name, function_class_numeric, direction, sectionid)
-    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, direction, sectionid)
+    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, sectionid)
+    gps_pt = lapattern.GPS_pattern(road_name, function_class_numeric, sectionid)
     
-    for day in rt_pt:
+    
+    for day in range(0,7):
         days = ["'Monday'", "'Tuesday'", "'Wednesday'", "'Thursday'", "'Friday'", "'Saturday'", "'Sunday'"]
         rt_str = "'{"
         his_str = "'{"
+        gps_str = "'{"
+        
         for i in range(0, 60):
             if rt_pt[day][i] == 0:
                 print "!!!!!!!!!!Emergency filling!!!!!!!!!!!!"
@@ -269,16 +347,46 @@ if __name__ == '__main__':
             if i == 0:
                 rt_str += str(rt_pt[day][i]) 
                 his_str += str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += str(gps_pt[day][i])
+                else:
+                    gps_str += "null"
             else:
                 rt_str += "," + str(rt_pt[day][i])
                 his_str += "," + str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += "," + str(gps_pt[day][i])
+                else:
+                    gps_str += ", null"
+         
         rt_str += "}'"
         his_str += "}'"
-        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern) values(%s,%s,%s,%s)"%("'Section 1'", days[day], rt_str, his_str)
-        lapattern.cursor.execute(sql)
+        gps_str += "}'"
         
+        similarity_point = lapattern.cal_similarity(rt_pt[day],his_pt[day])
+        
+        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern, gps_pattern, similarity) values(%s,%s,%s,%s,%s,%f)"%("'Section "+str(sectionid)+"'", days[day], rt_str, his_str, gps_str, similarity_point)
+        lapattern.cursor.execute(sql)
     lapattern.conn_to.commit()
-    
+    fileout.write("Section "+str(sectionid)+" realtime\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(rt_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" historic\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(his_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" gps\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(gps_pt[d][i]) + "\t")
+        fileout.write("\n")
+
     #Second Highway Section
     sectionid = 2
     road_name = "I-405"
@@ -286,12 +394,17 @@ if __name__ == '__main__':
     direction = 0    #0:N 1:S 2:E 3:W
     
     rt_pt = lapattern.realtime_pattern(road_name, function_class_numeric, direction, sectionid)
-    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, direction, sectionid)
+    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, sectionid)
+    gps_pt = lapattern.GPS_pattern(road_name, function_class_numeric, sectionid)
     
-    for day in rt_pt:
+    print gps_pt
+    
+    for day in range(0,7):
         days = ["'Monday'", "'Tuesday'", "'Wednesday'", "'Thursday'", "'Friday'", "'Saturday'", "'Sunday'"]
         rt_str = "'{"
         his_str = "'{"
+        gps_str = "'{"
+        
         for i in range(0, 60):
             if rt_pt[day][i] == 0:
                 print "!!!!!!!!!!Emergency filling!!!!!!!!!!!!"
@@ -299,16 +412,46 @@ if __name__ == '__main__':
             if i == 0:
                 rt_str += str(rt_pt[day][i]) 
                 his_str += str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += str(gps_pt[day][i])
+                else:
+                    gps_str += "null"
             else:
                 rt_str += "," + str(rt_pt[day][i])
                 his_str += "," + str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += "," + str(gps_pt[day][i])
+                else:
+                    gps_str += ", null"
+         
         rt_str += "}'"
         his_str += "}'"
-        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern) values(%s,%s,%s,%s)"%("'Section 2'", days[day], rt_str, his_str)
-        lapattern.cursor.execute(sql)
+        gps_str += "}'"
         
+        similarity_point = lapattern.cal_similarity(rt_pt[day],his_pt[day])
+        
+        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern, gps_pattern, similarity) values(%s,%s,%s,%s,%s,%f)"%("'Section "+str(sectionid)+"'", days[day], rt_str, his_str, gps_str, similarity_point)
+        lapattern.cursor.execute(sql)
     lapattern.conn_to.commit()
-    
+    fileout.write("Section "+str(sectionid)+" realtime\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(rt_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" historic\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(his_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" gps\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(gps_pt[d][i]) + "\t")
+        fileout.write("\n")
+
     #Third Highway Section
     sectionid = 3
     road_name = "I-710"
@@ -316,27 +459,63 @@ if __name__ == '__main__':
     direction = 0    #0:N 1:S 2:E 3:W
     
     rt_pt = lapattern.realtime_pattern(road_name, function_class_numeric, direction, sectionid)
-    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, direction, sectionid)
+    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, sectionid)
+    gps_pt = lapattern.GPS_pattern(road_name, function_class_numeric, sectionid)
     
-    for day in rt_pt:
+    print gps_pt
+    
+    for day in range(0,7):
         days = ["'Monday'", "'Tuesday'", "'Wednesday'", "'Thursday'", "'Friday'", "'Saturday'", "'Sunday'"]
         rt_str = "'{"
         his_str = "'{"
+        gps_str = "'{"
+        
         for i in range(0, 60):
             if rt_pt[day][i] == 0:
+                print "!!!!!!!!!!Emergency filling!!!!!!!!!!!!"
                 rt_pt[day][i] = his_pt[day][i] * random.uniform(0.9, 1.1)
             if i == 0:
                 rt_str += str(rt_pt[day][i]) 
                 his_str += str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += str(gps_pt[day][i])
+                else:
+                    gps_str += "null"
             else:
                 rt_str += "," + str(rt_pt[day][i])
                 his_str += "," + str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += "," + str(gps_pt[day][i])
+                else:
+                    gps_str += ", null"
+         
         rt_str += "}'"
         his_str += "}'"
-        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern) values(%s,%s,%s,%s)"%("'Section 3'", days[day], rt_str, his_str)
-        lapattern.cursor.execute(sql)
+        gps_str += "}'"
         
+        similarity_point = lapattern.cal_similarity(rt_pt[day],his_pt[day])
+        
+        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern, gps_pattern, similarity) values(%s,%s,%s,%s,%s,%f)"%("'Section "+str(sectionid)+"'", days[day], rt_str, his_str, gps_str, similarity_point)
+        lapattern.cursor.execute(sql)
     lapattern.conn_to.commit()
+    fileout.write("Section "+str(sectionid)+" realtime\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(rt_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" historic\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(his_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" gps\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(gps_pt[d][i]) + "\t")
+        fileout.write("\n")
                 
     #First Arterial Section
     sectionid = 4
@@ -345,27 +524,62 @@ if __name__ == '__main__':
     direction = 1    #0:N 1:S 2:E 3:W
     
     rt_pt = lapattern.realtime_pattern(road_name, function_class_numeric, direction, sectionid)
-    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, direction, sectionid)
+    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, sectionid)
+    gps_pt = lapattern.GPS_pattern(road_name, function_class_numeric, sectionid)
     
-    for day in rt_pt:
+    print gps_pt
+    
+    for day in range(0,7):
         days = ["'Monday'", "'Tuesday'", "'Wednesday'", "'Thursday'", "'Friday'", "'Saturday'", "'Sunday'"]
         rt_str = "'{"
         his_str = "'{"
+        gps_str = "'{"
+        
         for i in range(0, 60):
             if rt_pt[day][i] == 0:
+                print "!!!!!!!!!!Emergency filling!!!!!!!!!!!!"
                 rt_pt[day][i] = his_pt[day][i] * random.uniform(0.9, 1.1)
             if i == 0:
                 rt_str += str(rt_pt[day][i]) 
                 his_str += str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += str(gps_pt[day][i])
+                else:
+                    gps_str += "null"
             else:
                 rt_str += "," + str(rt_pt[day][i])
                 his_str += "," + str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += "," + str(gps_pt[day][i])
+                else:
+                    gps_str += ", null"
+         
         rt_str += "}'"
         his_str += "}'"
-        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern) values(%s,%s,%s,%s)"%("'Section 4'", days[day], rt_str, his_str)
-        lapattern.cursor.execute(sql)
+        gps_str += "}'"
+        similarity_point = lapattern.cal_similarity(rt_pt[day],his_pt[day])
         
+        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern, gps_pattern, similarity) values(%s,%s,%s,%s,%s,%f)"%("'Section "+str(sectionid)+"'", days[day], rt_str, his_str, gps_str, similarity_point)
+        lapattern.cursor.execute(sql)
     lapattern.conn_to.commit()
+    fileout.write("Section "+str(sectionid)+" realtime\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(rt_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" historic\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(his_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" gps\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(gps_pt[d][i]) + "\t")
+        fileout.write("\n")
         
     #Second Arterial Section
     sectionid = 5
@@ -374,27 +588,63 @@ if __name__ == '__main__':
     direction = 3    #0:N 1:S 2:E 3:W
     
     rt_pt = lapattern.realtime_pattern(road_name, function_class_numeric, direction, sectionid)
-    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, direction, sectionid)
+    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, sectionid)
+    gps_pt = lapattern.GPS_pattern(road_name, function_class_numeric, sectionid)
     
-    for day in rt_pt:
+    print gps_pt
+    
+    for day in range(0,7):
         days = ["'Monday'", "'Tuesday'", "'Wednesday'", "'Thursday'", "'Friday'", "'Saturday'", "'Sunday'"]
         rt_str = "'{"
         his_str = "'{"
+        gps_str = "'{"
+        
         for i in range(0, 60):
             if rt_pt[day][i] == 0:
+                print "!!!!!!!!!!Emergency filling!!!!!!!!!!!!"
                 rt_pt[day][i] = his_pt[day][i] * random.uniform(0.9, 1.1)
             if i == 0:
                 rt_str += str(rt_pt[day][i]) 
                 his_str += str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += str(gps_pt[day][i])
+                else:
+                    gps_str += "null"
             else:
                 rt_str += "," + str(rt_pt[day][i])
                 his_str += "," + str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += "," + str(gps_pt[day][i])
+                else:
+                    gps_str += ", null"
+         
         rt_str += "}'"
         his_str += "}'"
-        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern) values(%s,%s,%s,%s)"%("'Section 5'", days[day], rt_str, his_str)
-        lapattern.cursor.execute(sql)
+        gps_str += "}'"
+        similarity_point = lapattern.cal_similarity(rt_pt[day],his_pt[day])
         
+        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern, gps_pattern, similarity) values(%s,%s,%s,%s,%s,%f)"%("'Section "+str(sectionid)+"'", days[day], rt_str, his_str, gps_str, similarity_point)
+        
+        lapattern.cursor.execute(sql)
     lapattern.conn_to.commit()
+    fileout.write("Section "+str(sectionid)+" realtime\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(rt_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" historic\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(his_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" gps\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(gps_pt[d][i]) + "\t")
+        fileout.write("\n")
         
     #Third Arterial Section
     sectionid = 6
@@ -403,29 +653,65 @@ if __name__ == '__main__':
     direction = 1   #0:N 1:S 2:E 3:W
     
     rt_pt = lapattern.realtime_pattern(road_name, function_class_numeric, direction, sectionid)
-    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, direction, sectionid)
+    his_pt = lapattern.historic_pattern(road_name, function_class_numeric, sectionid)
+    gps_pt = lapattern.GPS_pattern(road_name, function_class_numeric, sectionid)
     
-    for day in rt_pt:
+    print gps_pt
+    
+    for day in range(0,7):
         days = ["'Monday'", "'Tuesday'", "'Wednesday'", "'Thursday'", "'Friday'", "'Saturday'", "'Sunday'"]
         rt_str = "'{"
         his_str = "'{"
+        gps_str = "'{"
+        
         for i in range(0, 60):
             if rt_pt[day][i] == 0:
+                print "!!!!!!!!!!Emergency filling!!!!!!!!!!!!"
                 rt_pt[day][i] = his_pt[day][i] * random.uniform(0.9, 1.1)
             if i == 0:
                 rt_str += str(rt_pt[day][i]) 
                 his_str += str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += str(gps_pt[day][i])
+                else:
+                    gps_str += "null"
             else:
                 rt_str += "," + str(rt_pt[day][i])
                 his_str += "," + str(his_pt[day][i])
+                if not gps_pt[day][i] == 0:
+                    gps_str += "," + str(gps_pt[day][i])
+                else:
+                    gps_str += ", null"
+         
         rt_str += "}'"
         his_str += "}'"
-        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern) values(%s,%s,%s,%s)"%("'Section 6'", days[day], rt_str, his_str)
-        lapattern.cursor.execute(sql)
+        gps_str += "}'"
+        similarity_point = lapattern.cal_similarity(rt_pt[day],his_pt[day])
         
+        sql = "insert into SS_SECTION_PATTERN(section_id, day, realtime_pattern, historical_pattern, gps_pattern, similarity) values(%s,%s,%s,%s,%s,%f)"%("'Section "+str(sectionid)+"'", days[day], rt_str, his_str, gps_str, similarity_point)
+        lapattern.cursor.execute(sql)
     lapattern.conn_to.commit()
-    
-    lapattern.closedb()
+    fileout.write("Section "+str(sectionid)+" realtime\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(rt_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" historic\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(his_pt[d][i]) + "\t")
+        fileout.write("\n")
+    fileout.write("Section "+str(sectionid)+" gps\n")
+    for d in range(0,7):
+        fileout.write(str(d)+"\n")
+        for i in range(0,60):
+            fileout.write(str(gps_pt[d][i]) + "\t")
+        fileout.write("\n")
+
+    lapattern.close_db()
+    fileout.close()
     
     
     
