@@ -145,11 +145,15 @@ class Map(object):
             path[cur_sec].append(filtered_links[cur_idx])
             
             cur_idx += 1
-        
+        '''
         if len(path[cur_sec]) <= 3:
             print "The last section is meaningless, del it"
             del(path[cur_sec])
-                
+            cur_sec -= 1
+            while len(path[cur_sec]) == 0:
+                del(path[cur_sec])
+                cur_sec -= 1
+        '''        
         print "Section filling finished"
         
         return path
@@ -168,8 +172,14 @@ class Map(object):
             filtered_links1 = self.sort_links(link_loc, filtered_links1, direction)
             filtered_links2 = self.filter_range_bearing(link_loc, tn['min_lon2'], tn['max_lon2'], tn['min_lat2'], tn['max_lat2'], t_direction)
             filtered_links2 = self.sort_links(link_loc, filtered_links2, t_direction)
+        
             filtered_links = filtered_links1 + filtered_links2
             
+            if road_name == '405':
+                filtered_links3 = self.filter_range_bearing(link_loc, tn['min_lon3'], tn['max_lon3'], tn['min_lat3'], tn['max_lat3'], direction)
+                filtered_links3 = self.sort_links(link_loc, filtered_links3, direction)
+                filtered_links = filtered_links1 + filtered_links2 + filtered_links3
+                 
         path = self.fill_path(link_loc, filtered_links, section_len)
         
         for i in path:
@@ -181,7 +191,6 @@ class Map(object):
     
 if __name__ == '__main__':
     lamap = Map()
-    lamap.init_db()
     
     hwy_secs = {}
     
@@ -194,6 +203,8 @@ if __name__ == '__main__':
     turn = {}
     
     turn['14'] = {2:{'min_lon1':min_lon,'max_lon1':-118.1396245,'min_lat1':min_lat,'max_lat1':max_lat,'min_lon2':-118.1396245,'max_lon2':max_lon,'min_lat2':min_lat,'max_lat2':max_lat}, 1:{'min_lon1':-118.1396245,'max_lon1':max_lon,'min_lat1':min_lat,'max_lat1':max_lat,'min_lon2':min_lon,'max_lon2':-118.1396245,'min_lat2':min_lat,'max_lat2':max_lat}}
+    turn['101'] = {2:{'min_lon1':min_lon,'max_lon1':-118.377508,'min_lat1':min_lat,'max_lat1':max_lat,'min_lon2':-118.377508,'max_lon2':max_lon,'min_lat2':min_lat,'max_lat2':max_lat}, 0:{'min_lon1':-118.377508,'max_lon1':max_lon,'min_lat1':min_lat,'max_lat1':max_lat,'min_lon2':min_lon,'max_lon2':-118.377508,'min_lat2':min_lat,'max_lat2':max_lat}}
+    turn['405'] = {1:{'min_lon1':min_lon,'max_lon1':max_lon,'min_lat1':33.897262,'max_lat1':max_lat,'min_lon2':min_lon,'max_lon2':max_lon,'min_lat2':33.644662,'max_lat2':33.897262,'min_lon3':min_lon,'max_lon3':max_lon,'min_lat3':min_lat,'max_lat3':33.644662}, 0:{'min_lon1':min_lon,'max_lon1':max_lon,'min_lat1':min_lat,'max_lat1':33.644662,'min_lon2':min_lon,'max_lon2':max_lon,'min_lat2':33.644662,'max_lat2':33.897262,'min_lon3':min_lon,'max_lon3':max_lon,'min_lat3':33.897262,'max_lat3':max_lat}}
     '''
     #0:N 1:S 2:E 3:W
     hwy_set = [
@@ -207,14 +218,66 @@ if __name__ == '__main__':
         ("10",3, 3),
         ("14", 2, 0)
         ("14", 1, 3)
-        ("15", 0, 3),
+        ("15", 0, 0),
         ("15", 1, 1),
         ("22", 2, 2),
-        
-        
+        ("22", 3, 3),
+        ("23", 0, 0),
+        ("23", 1, 1),
+        ("33", 0, 0),
+        ("33", 1, 1),
+        ("47", 0, 0),
+        ("47", 1, 1),
+        ("55", 0, 0),
+        ("55", 1, 1),
+        ("57", 0, 0),
+        ("57", 1, 1),
+        ("60", 2, 2), 
+        ("60", 3, 3),
+        ("71", 0, 0), 
+        ("71", 1, 1),
+        ("73", 0, 0), 
+        ("73", 1, 1),
+        ("90", 2, 2), 
+        ("90", 3, 3),
+        ("91", 2, 2), 
+        ("91", 3, 3),
+        ("101", 0, 3),
+        ("101", 2, 1),
+        ("103", 0, 0), 
+        ("103", 1, 1),
+        ("105", 2, 2), 
+        ("105", 3, 3),
+        ("110", 0, 0), 
+        ("110", 1, 1),
+        ("118", 2, 2), 
+        ("118", 3, 3),
+        ("126", 2, 2), 
+        ("126", 3, 3),
+        ("133", 0, 0), 
+        ("133", 1, 1),
+        ("134", 2, 2), 
+        ("134", 3, 3),
+        ("170", 0, 0), 
+        ("170", 1, 1),
+        ("210", 2, 2), 
+        ("210", 3, 3),
+        ("215", 0, 0), 
+        ("215", 1, 1),
+        ("241", 0, 0), 
+        ("241", 1, 1),
+        ("405", 1, 2), 
+        ("405", 0, 3),
+        ("605", 0, 0), 
+        ("605", 1, 1),
+        ("710", 0, 0), 
+        ("710", 1, 1)
               ]   
     '''
-    hwy_set = [("22", 3, 3)]
+    hwy_set = [
+        ("110", 0, 0), 
+        ("110", 1, 1)
+    ]
     for hwy in hwy_set:
         road_name = hwy[0]
         direction = hwy[1]
