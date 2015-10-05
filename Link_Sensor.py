@@ -45,7 +45,7 @@ class Map(object):
                         if name_default not in false_name:
                             false_name.append(name_default)
                         continue
-            else:
+            elif name_default.index(road_name) > 0:
                 if name_default[name_default.index(road_name)-1].isdigit():
                     if name_default not in false_name:
                         false_name.append(name_default)
@@ -83,7 +83,7 @@ class Map(object):
     def filter_range_bearing(self, link_loc, min_lon, max_lon, min_lat, max_lat, direction):
     #direction: 0-North 1-South 2-East 3-West
     
-        print "Begin filtering links in region with right direction"
+        #print "Begin filtering links in region with right direction"
         
         filtered_links = []
         for link_id in link_loc:
@@ -102,7 +102,7 @@ class Map(object):
     
     def sort_links(self, link_loc, filtered_links, direction):
     
-        print "Begin Sorting links"
+        #print "Begin Sorting links"
     
         if direction == 0:
             filtered_links.sort(key=lambda x:link_loc[x][0][1],reverse=False)
@@ -121,7 +121,7 @@ class Map(object):
     
     def fill_path(self, link_loc, filtered_links, section_len):
     
-        print "Begin filling the whole road and divide into sections"
+        #print "Begin filling the whole road and divide into sections"
     
         path = {}
         path[0] = []
@@ -154,7 +154,7 @@ class Map(object):
                 del(path[cur_sec])
                 cur_sec -= 1
         '''        
-        print "Section filling finished"
+        #print "Section filling finished"
         
         return path
     
@@ -181,19 +181,82 @@ class Map(object):
                 filtered_links = filtered_links1 + filtered_links2 + filtered_links3
                  
         path = self.fill_path(link_loc, filtered_links, section_len)
-        
+        '''
         for i in path:
             print i, ':'
             for j in path[i]:
                     print link_loc[j][0][1], link_loc[j][0][0], ','
-        
+        '''
         return path
+    
+class Sensor(object):
+    def __init__(self, cursor):
+        self.cursor = cursor
+    
+    def find_all_sensors(self, road_name, direction, t_direction):
+    #find all sensors on hwys
+        sql = "select distinct sensor_id, ST_AsText(start_lat_long), onstreet from highway_congestion_config where last_seen_at >= '2015-01-01' and last_seen_at < '2016-01-01' and onstreet like '%" + road_name + "%' and (direction = '" + str(direction) +"' or direction = '"+str(t_direction)+"')"
+        self.cursor.execute(sql)
+        results = self.cursor.fetchall()
+        sensors = []
+        for sensor_id, loc, onstreet in results:
+            if (len(onstreet) >(onstreet.index(road_name) + len(road_name))):
+                if onstreet[onstreet.index(road_name)-1].isdigit() or onstreet[onstreet.index(road_name)+len(road_name)].isdigit():
+                    continue
+            elif onstreet.index(road_name) > 0:
+                if onstreet[onstreet.index(road_name)-1].isdigit():
+                    continue
+                        
+            t = [sensor_id, Utils.extract_loc_from_geometry(loc)]
+            if t not in sensors:
+                sensors.append(t)
+                
+        print "number of all sensors:", len(sensors)
+        
+        return sensors
+    
+    def dict_road(self, link_loc, path, sensors):
+    #build the dictionary of sensors on roads
+        dict_road = {}
+        used_s = []
+        for section in path:
+            dict_road[section] = {}
+            for link in path[section]:
+                dict_road[section][link] = []
+
+                lon1, lat1 = link_loc[link][0]
+                lon2, lat2 = link_loc[link][1]
+                for sensor in sensors:
+                    lon_sen, lat_sen = sensor[1]
+                    if Utils.is_in_bbox(lon1,lat1,lon2,lat2,lon_sen,lat_sen):
+                        if Utils.map_dist(lon1,lat1,lon_sen,lat_sen) < 5000:
+                            #print "find sensor",lat_sen,lon_sen,"on link:",link_loc[link][:2]
+                            dict_road[section][link].append(sensor[0])
+                            if sensor not in used_s:
+                                used_s.append(sensor)
+                    else:
+                        if Utils.map_dist(lon1,lat1,lon_sen,lat_sen) < 75 or Utils.map_dist(lon2,lat2,lon_sen,lat_sen) < 75:
+                            #print "find sensor",lat_sen,lon_sen,"near link:",link_loc[link][:2]
+                            dict_road[section][link].append(sensor[0])
+                            if sensor not in used_s:
+                                used_s.append(sensor)     
+            
+        print "number of used_sensors:", len(used_s)
+
+                    
+        return dict_road
+        
+    
+    def map_sensor_highway(self, road_name, path, direction, t_direction, link_loc):
+        sensors = self.find_all_sensors(road_name, direction, t_direction)
+        dict_sensors_roads = self.dict_road(link_loc, path, sensors)
+ 
+        return dict_sensors_roads
     
 if __name__ == '__main__':
     lamap = Map()
-    
-    hwy_secs = {}
-    
+    lasensor = Sensor(lamap.cursor)
+
     min_lon = -119.4370 
     max_lon = -116.7240
     min_lat = 33.2980
@@ -205,19 +268,17 @@ if __name__ == '__main__':
     turn['14'] = {2:{'min_lon1':min_lon,'max_lon1':-118.1396245,'min_lat1':min_lat,'max_lat1':max_lat,'min_lon2':-118.1396245,'max_lon2':max_lon,'min_lat2':min_lat,'max_lat2':max_lat}, 1:{'min_lon1':-118.1396245,'max_lon1':max_lon,'min_lat1':min_lat,'max_lat1':max_lat,'min_lon2':min_lon,'max_lon2':-118.1396245,'min_lat2':min_lat,'max_lat2':max_lat}}
     turn['101'] = {2:{'min_lon1':min_lon,'max_lon1':-118.377508,'min_lat1':min_lat,'max_lat1':max_lat,'min_lon2':-118.377508,'max_lon2':max_lon,'min_lat2':min_lat,'max_lat2':max_lat}, 0:{'min_lon1':-118.377508,'max_lon1':max_lon,'min_lat1':min_lat,'max_lat1':max_lat,'min_lon2':min_lon,'max_lon2':-118.377508,'min_lat2':min_lat,'max_lat2':max_lat}}
     turn['405'] = {1:{'min_lon1':min_lon,'max_lon1':max_lon,'min_lat1':33.897262,'max_lat1':max_lat,'min_lon2':min_lon,'max_lon2':max_lon,'min_lat2':33.644662,'max_lat2':33.897262,'min_lon3':min_lon,'max_lon3':max_lon,'min_lat3':min_lat,'max_lat3':33.644662}, 0:{'min_lon1':min_lon,'max_lon1':max_lon,'min_lat1':min_lat,'max_lat1':33.644662,'min_lon2':min_lon,'max_lon2':max_lon,'min_lat2':33.644662,'max_lat2':33.897262,'min_lon3':min_lon,'max_lon3':max_lon,'min_lat3':33.897262,'max_lat3':max_lat}}
-    '''
+    
     #0:N 1:S 2:E 3:W
     hwy_set = [
-        ("1", 2, 2), 
-        ("1", 3, 3),
         ("2", 2, 2),
         ("2", 3, 3),
         ("5", 0, 0),
         ("5", 1, 1),
         ("10",2, 2),
         ("10",3, 3),
-        ("14", 2, 0)
-        ("14", 1, 3)
+        ("14", 2, 0),
+        ("14", 1, 3),
         ("15", 0, 0),
         ("15", 1, 1),
         ("22", 2, 2),
@@ -244,8 +305,6 @@ if __name__ == '__main__':
         ("91", 3, 3),
         ("101", 0, 3),
         ("101", 2, 1),
-        ("103", 0, 0), 
-        ("103", 1, 1),
         ("105", 2, 2), 
         ("105", 3, 3),
         ("110", 0, 0), 
@@ -273,15 +332,28 @@ if __name__ == '__main__':
         ("710", 0, 0), 
         ("710", 1, 1)
               ]   
-    '''
-    hwy_set = [
-        ("110", 0, 0), 
-        ("110", 1, 1)
-    ]
+    
     for hwy in hwy_set:
         road_name = hwy[0]
         direction = hwy[1]
         t_direction = hwy[2]
-        hwy_secs[hwy] = lamap.process_road(road_name, function_class_numeric, direction, t_direction, min_lon, max_lon, min_lat, max_lat, section_len, turn)
+        path = lamap.process_road(road_name, function_class_numeric, direction, t_direction, min_lon, max_lon, min_lat, max_lat, section_len, turn)
+        mapping = lasensor.map_sensor_highway(road_name, path, direction, t_direction, lamap.link_loc[road_name])
+        
+        for section in mapping:
+            from_postmile = int(section) * 3
+            to_postmile = int(section) * 3 + 3
+            for link in mapping[section]:
+                if len(mapping[section][link]) == 0:
+                    sql = "insert into \"SS_SENSOR_MAPPING\" (road_name,direction,from_postmile,to_postmile,link_id) values (%s,%d,%d,%d,%d)"%(road_name,direction,from_postmile,to_postmile,link)
+                    lamap.cursor.execute(sql)
+                    print road_name, section, link, "no sensor"
+                else:
+                    for sensor in mapping[section][link]:
+                        sql = "insert into \"SS_SENSOR_MAPPING\" (road_name,direction,from_postmile,to_postmile,link_id,sensor_id) values (%s,%d,%d,%d,%d,%d)"%(road_name,direction,from_postmile,to_postmile,link,sensor)
+                        lamap.cursor.execute(sql)
+                        print road_name, section, link, sensor
+        
+    lamap.close_db()
     
     
