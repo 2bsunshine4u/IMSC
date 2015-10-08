@@ -34,13 +34,32 @@ def bearing(Longitude1, Latitude1, Longitude2, Latitude2):
     
     return heading
 
-def is_in_bbox(lon1, lat1, lon2, lat2, lon, lat, direction):
+def is_in_bbox(lon1, lat1, lon2, lat2, lon, lat):
     mlon = min(lon1, lon2)
     mlat = min(lat1, lat2)
     xlon = max(lon1, lon2)
     xlat = max(lat1, lat2)
-    if direction == 0 or direction ==1:
+    b = bearing(lon1, lat1, lon2, lat2)
+    if b < 45 or (b >= 135 and b < 225) or b > 315:
         return lat >= mlat and lat <= xlat
     else:
         return lon >= mlon and lon <= xlon
+    
+def list_to_str(l):
+    s = "'{"
+    for i in range(0, len(l)):
+        if i == 0:
+            if not l[i] == 0:
+                s += str(l[i])
+            else:
+                s += "null"
+        else:
+            if not l[i] == 0:
+                s += "," + str(l[i])
+            else:
+                s += ", null"
+    s += "}'"
+    
+    return s
+            
 

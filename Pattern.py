@@ -1,7 +1,6 @@
 import psycopg2
 import datetime
 import Utils
-import random
 
 class Pattern(object):
     def __init__(self):
