@@ -5,6 +5,7 @@ class Map(object):
     def __init__(self):
         self.init_db()
         self.link_loc = {}
+        self.nodes = {}
         
     def init_db(self):
         print "Connecting to database ......"
@@ -16,6 +17,17 @@ class Map(object):
     def close_db(self):
         self.conn_to.commit()
         self.conn_to.close()
+        
+    def pre_nodes(self):
+        print "nodes preprocessing"
+        sql = "select node_id, ST_AsText(geom) from nodes"
+        self.cursor.execute(sql)
+        results = self.cursor.fetchall()
+        for node_id, pos in results:
+            if node_id not in self.nodes:
+                self.nodes[node_id] = Utils.extract_loc_from_geometry(pos)
+        
+        return self.nodes
         
     def locate_links(self, road_name, function_class_numeric):
     #find (lon, lat) of (from_node, to_node) of all links on the certain highway
@@ -59,15 +71,8 @@ class Map(object):
             if name_default not in true_name:
                 true_name.append(name_default)
                     
-            sql = "select ST_AsText(geom) from nodes where node_id =" + str(from_node_id)
-            self.cursor.execute(sql)
-            from_node_pos = self.cursor.fetchall()[0][0]
-            from_node_loc = Utils.extract_loc_from_geometry(from_node_pos)
-            
-            sql = "select ST_AsText(geom) from nodes where node_id =" + str(to_node_id)
-            self.cursor.execute(sql)
-            to_node_pos = self.cursor.fetchall()[0][0]
-            to_node_loc = Utils.extract_loc_from_geometry(to_node_pos)
+            from_node_loc = self.nodes[from_node_id]
+            to_node_loc = self.nodes[to_node_id]
             
             link_loc[link_id] = (from_node_loc, to_node_loc, from_node_id, to_node_id)
         
@@ -215,31 +220,60 @@ class Sensor(object):
         
         return sensors
     
-    def dict_road(self, link_loc, path, sensors):
+    def dict_road(self, link_loc, path, sensors, direction):
     #build the dictionary of sensors on roads
         dict_road = {}
         used_s = []
         for section in path:
             dict_road[section] = {}
             for link in path[section]:
+                dist1 = 99999
+                dist2 = 99999
                 dict_road[section][link] = []
 
                 lon1, lat1 = link_loc[link][0]
                 lon2, lat2 = link_loc[link][1]
                 for sensor in sensors:
                     lon_sen, lat_sen = sensor[1]
-                    if Utils.is_in_bbox(lon1,lat1,lon2,lat2,lon_sen,lat_sen):
+                    if Utils.is_in_bbox(lon1,lat1,lon2,lat2,lon_sen,lat_sen) or Utils.map_dist(lon_sen, lat_sen, lon1, lat1) <= 75 or Utils.map_dist(lon_sen, lat_sen, lon2, lat2) <= 75:
                         if Utils.map_dist(lon1,lat1,lon_sen,lat_sen) < 5000:
                             #print "find sensor",lat_sen,lon_sen,"on link:",link_loc[link][:2]
                             dict_road[section][link].append(sensor[0])
                             if sensor not in used_s:
                                 used_s.append(sensor)
-                    else:
-                        if Utils.map_dist(lon1,lat1,lon_sen,lat_sen) < 75 or Utils.map_dist(lon2,lat2,lon_sen,lat_sen) < 75:
-                            #print "find sensor",lat_sen,lon_sen,"near link:",link_loc[link][:2]
-                            dict_road[section][link].append(sensor[0])
-                            if sensor not in used_s:
-                                used_s.append(sensor)     
+                            continue
+                    elif len(dict_road[section][link]) == 0:
+                        if direction == 0 or direction == 1:
+                            d = Utils.map_dist(lon_sen, lat_sen, lon1, lat1)
+                            if d < dist1 and (lat_sen-lat1)*(lat1-lat2) > 0:
+                                sen1 = sensor
+                                dist1 = d
+
+                            d = Utils.map_dist(lon_sen, lat_sen, lon2, lat2)
+                            if  d < dist2 and (lat_sen-lat2)*(lat2-lat1) > 0:
+                                sen2 = sensor
+                                dist2 = d                        
+                        else:
+                            d = Utils.map_dist(lon_sen, lat_sen, lon1, lat1)
+                            if d < dist1 and (lon_sen-lon1)*(lon1-lon2) >0:
+                                sen1 = sensor
+                                dist1 = d
+
+                            d = Utils.map_dist(lon_sen, lat_sen, lon2, lat2)
+                            if  d < dist2 and (lon_sen-lon2)*(lon2-lon1) >0:
+                                sen2 = sensor
+                                dist2 = d
+
+                if len(dict_road[section][link]) == 0:
+                    if dist1 < 3000:
+                        dict_road[section][link].append(sen1[0])
+                        if sen1 not in used_s:
+                            used_s.append(sen1)
+
+                    if dist2 < 3000:
+                        dict_road[section][link].append(sen2[0])
+                        if sen2 not in used_s:
+                            used_s.append(sen2)  
             
         print "number of used_sensors:", len(used_s)
 
@@ -249,7 +283,7 @@ class Sensor(object):
     
     def map_sensor_highway(self, road_name, path, direction, t_direction, link_loc):
         sensors = self.find_all_sensors(road_name, direction, t_direction)
-        dict_sensors_roads = self.dict_road(link_loc, path, sensors)
+        dict_sensors_roads = self.dict_road(link_loc, path, sensors, direction)
  
         return dict_sensors_roads
     
@@ -333,6 +367,7 @@ if __name__ == '__main__':
         ("710", 1, 1)
               ]   
     
+    lamap.pre_nodes()
     for hwy in hwy_set:
         road_name = hwy[0]
         direction = hwy[1]
@@ -344,13 +379,15 @@ if __name__ == '__main__':
             from_postmile = int(section) * 3
             to_postmile = int(section) * 3 + 3
             for link in mapping[section]:
+                if road_name == '33' and section > 40:
+                    continue
                 if len(mapping[section][link]) == 0:
-                    sql = "insert into \"SS_SENSOR_MAPPING\" (road_name,direction,from_postmile,to_postmile,link_id) values (%s,%d,%d,%d,%d)"%(road_name,direction,from_postmile,to_postmile,link)
+                    sql = "insert into \"SS_SENSOR_MAPPING_ALL\" (road_name,direction,from_postmile,to_postmile,link_id) values (%s,%d,%d,%d,%d)"%(road_name,direction,from_postmile,to_postmile,link)
                     lamap.cursor.execute(sql)
                     print road_name, section, link, "no sensor"
                 else:
                     for sensor in mapping[section][link]:
-                        sql = "insert into \"SS_SENSOR_MAPPING\" (road_name,direction,from_postmile,to_postmile,link_id,sensor_id) values (%s,%d,%d,%d,%d,%d)"%(road_name,direction,from_postmile,to_postmile,link,sensor)
+                        sql = "insert into \"SS_SENSOR_MAPPING_ALL\" (road_name,direction,from_postmile,to_postmile,link_id,sensor_id) values (%s,%d,%d,%d,%d,%d)"%(road_name,direction,from_postmile,to_postmile,link,sensor)
                         lamap.cursor.execute(sql)
                         print road_name, section, link, sensor
         
