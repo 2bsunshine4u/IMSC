@@ -34,7 +34,7 @@ class Pattern(object):
         results = self.cursor.fetchall()
         mapping = {}
         for road_name, direction, from_postmile,link,sensor in results:
-            if int(road_name) >= 50 and int(road_name) < 100: 
+            if int(road_name) >= 150: 
                 if road_name not in mapping:
                     mapping[road_name] = {}
                 if direction not in mapping[road_name]:

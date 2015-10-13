@@ -1,5 +1,5 @@
 <?php
-	echo "<h1 style = 'text-align:center'>Pattern Comparison</h1>";
+        echo "<h1 style = 'text-align:center'>Pattern Comparison</h1>";	
 	$host        = "host=osm-workspace-2.cfmyklmn07yu.us-west-2.rds.amazonaws.com";
   $port        = "port=5432";
   $dbname      = "dbname=osm";
@@ -37,7 +37,7 @@
     if(!$db){
       echo "Error : Unable to open database\n";
     } 
-    $sql = 'SELECT * from ' .'"'.'SS_SECTION_PATTERN'.'"'.' WHERE road_name='."'".$road_name."'".' AND direction='.
+    $sql = 'SELECT * from ' .'"'.'SS_SECTION_PATTERN_ALL'.'"'.' WHERE road_name='."'".$road_name."'".' AND direction='.
             $direction.' AND from_postmile='.$postmile.' AND day='."'".$day."'";//注意空格和单双引号
     /*$sql =<<<EOF
   SELECT * from "SS_SECTION_PATTERN" WHERE road_name = '2' ;
