@@ -16,7 +16,7 @@ if __name__ == '__main__':
     results = cursor.fetchall()
     mapping = {}
     for road_name, direction, from_postmile, link_id, sensor_id in results:
-        if int(road_name):
+        if int(road_name) == 10 and direction == 3:
             section = from_postmile/3
             if road_name not in mapping:
                 mapping[road_name] = {}
@@ -103,7 +103,7 @@ if __name__ == '__main__':
                             print "Historical mapped Sensors:", his_mapping[link_id]
                         
                         
-                        print "My sensor Location:"
+                        print "My sensor Information:"
                         for sensor_id in mapping[road_name][direction][section][link_id]: 
                             sql = "select direction, onstreet, ST_AsText(start_lat_long) from highway_congestion_config where sensor_id = " + str(sensor_id)
                             cursor.execute(sql)
@@ -117,7 +117,7 @@ if __name__ == '__main__':
                             print "Missing Mapping!!!!!!"
                             continue
                         
-                        print "\nHistorical sensor Location:"
+                        print "\nHistorical sensor Information:"
                         for sensor_id in his_mapping[link_id]: 
                             sql = "select direction, onstreet, ST_AsText(start_lat_long) from highway_congestion_config where sensor_id = " + str(sensor_id)
                             cursor.execute(sql)
@@ -132,7 +132,9 @@ if __name__ == '__main__':
                                 print "WRONG DIRECTION!!!"
                             
                     else:
-                        #print "Same mapping on:",road_name,direction,section,link_id
+                        print "\nSame mapping on:",road_name,direction,section,link_id
+                        print "My mapped Sensors:", mapping[road_name][direction][section][link_id]
+                        #print "Historical mapped Sensors:", his_mapping[link_id]
                         continue
                         
                             

@@ -26,6 +26,7 @@ def map_dist(lon1, lat1, lon2, lat2):
             return 1000000
         
 def bearing(Longitude1, Latitude1, Longitude2, Latitude2):
+    Longitude1, Latitude1, Longitude2, Latitude2 = map(math.radians, [Longitude1, Latitude1, Longitude2, Latitude2])
     x = math.sin(Longitude2 - Longitude1) * math.cos(Latitude2)
     y = math.cos(Latitude1) * math.sin(Latitude2) - math.sin(Latitude1) * math.cos(Latitude2) * math.cos(Longitude2 - Longitude1)
     heading = math.atan2(x, y) * 180 / 3.14159265
@@ -33,6 +34,22 @@ def bearing(Longitude1, Latitude1, Longitude2, Latitude2):
         heading += 360
     
     return heading
+
+def point2line(lon, lat, lon1, lat1, lon2, lat2):
+    bearing0 = bearing(lon1, lat1, lon2, lat2)
+    bearing1 = bearing(lon1, lat1, lon, lat)
+    bearing2 = bearing(lon, lat, lon2, lat2)
+    angle1 = abs(bearing0 - bearing1)
+    angle2 = abs(bearing0 - bearing2)
+    if angle1 > 90 and angle1 < 270:
+        dist = map_dist(lon1, lat1, lon, lat)
+    elif angle2 > 90 and angle2 < 270:
+        dist = map_dist(lon2, lat2, lon, lat)
+    else:
+        a1 = math.radians(angle1)
+        dist = map_dist(lon1, lat1, lon, lat) * abs( math.sin(a1))
+    
+    return dist
 
 def is_in_bbox(lon1, lat1, lon2, lat2, lon, lat):
     mlon = min(lon1, lon2)

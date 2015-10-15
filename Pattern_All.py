@@ -34,7 +34,7 @@ class Pattern(object):
         results = self.cursor.fetchall()
         mapping = {}
         for road_name, direction, from_postmile,link,sensor in results:
-            if int(road_name) >= 150: 
+            if int(road_name) == 10: 
                 if road_name not in mapping:
                     mapping[road_name] = {}
                 if direction not in mapping[road_name]:
@@ -150,6 +150,8 @@ class Pattern(object):
                     time_end = datetime.time(time.hour,time.minute+15,time.second)
                 link_spd = {}
                 for link in mapping[road_name][direction][section]:
+                    lon1,lat1 = self.nodes[self.links[road_name][link][0]]
+                    lon2, lat2 = self.nodes[self.links[road_name][link][1]]
                     avg_spd = []
                     for sensor in mapping[road_name][direction][section][link]: 
                         loc = sensor_loc[sensor]
@@ -160,11 +162,10 @@ class Pattern(object):
                             avg_spd.append([spd, loc])
                     if len(avg_spd) == 0:
                         pass#print "No available data for link:", link
-                    elif len(avg_spd) == 1:
-                        link_spd[link] = float(avg_spd[0][0])
+                    elif len(avg_spd) != 2 or Utils.is_in_bbox(avg_spd[0][1][0],avg_spd[0][1][1],lon1,lat1,lon2,lat2):
+                        t = map(lambda x:float(x[0]), avg_spd)
+                        link_spd[link] = sum(t)/len(t)
                     elif len(avg_spd) == 2:
-                        lon1,lat1 = self.nodes[self.links[road_name][link][0]]
-                        lon2, lat2 = self.nodes[self.links[road_name][link][1]]
                         mid_lon = (lon1 + lon1) / 2.0
                         mid_lat = (lat1 + lat2) / 2.0
                         if direction == 0 or direction == 1:
@@ -192,42 +193,38 @@ class Pattern(object):
         return day_spd
         
     def historical_pattern(self, road_name, direction, section, mapping):
+        '''
         days = ["'Monday'", "'Tuesday'", "'Wednesday'", "'Thursday'", "'Friday'", "'Saturday'", "'Sunday'"]
         
         his_day_spd = {} 
-        v1_day_spd = {}
         
-        sql = "select day, historical_pattern,v1_pattern from \"SS_SECTION_PATTERN\" where road_name = '"+road_name+"' and direction ="+str(direction)+" and from_postmile = "+str(section*3)
+        
+        sql = "select day, historical_pattern from \"SS_SECTION_PATTERN\" where road_name = '"+road_name+"' and direction ="+str(direction)+" and from_postmile = "+str(section*3)
         self.cursor.execute(sql)
         results = self.cursor.fetchall()
-        for day,historical_pattern,v1_pattern in results:
+        for day,historical_pattern in results:
             d = days.index("'"+day+"'")
             his_day_spd[d] = historical_pattern
-            v1_day_spd[d] = v1_pattern
             for i in range(0,60):
                 if his_day_spd[d][i]:
                     his_day_spd[d][i] = float(his_day_spd[d][i])
                 else:
                     his_day_spd[d][i] = 0
-                if v1_day_spd[d][i]:
-                    v1_day_spd[d][i] = float(v1_day_spd[d][i])
-                else:
-                    v1_day_spd[d][i] = 0
             
-        return his_day_spd, v1_day_spd
+        return his_day_spd
         '''
-        print "historical_data preprocessing"
         
         days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
         
+        print "historical_data preprocessing"
+        
         his_day_link_weight = {}
-        v1_day_link_weight = {}
+
         for d in range(0, 7):
             day = days[d]
             his_day_link_weight[d] = {}
-            v1_day_link_weight[d] = {}
             for link in mapping[road_name][direction][section]:
-                start_node, end_node = link_nodes[road_name][link][:2]
+                start_node, end_node = self.links[road_name][link][:2]
                 sql = "select weights from edge_weight_metric_"+day+" WHERE start_originalid = " + str(start_node) + " AND end_originalid = "+str(end_node)
                 self.his_cursor.execute(sql)
                 results = self.his_cursor.fetchall()
@@ -235,14 +232,6 @@ class Pattern(object):
                     weights = results[0][0]
                     if len(weights) == 60:
                         his_day_link_weight[d][link] = weights
-                
-                sql = "select weights from current_data_metric_"+day+" WHERE start_originalid = " + str(start_node) + " AND end_originalid = "+str(end_node)
-                self.his_cursor.execute(sql)
-                results = self.his_cursor.fetchall()
-                if len(results) > 0:
-                    weights = results[0][0]
-                    if len(weights) == 60:
-                        v1_day_link_weight[d][link] = weights
             
         his_day_spd = {}
         for day in range(0, 7):
@@ -261,7 +250,7 @@ class Pattern(object):
                 total_weight = 0
 
                 for link in link_weight:
-                    total_len += link_nodes[road_name][link][2]
+                    total_len += self.links[road_name][link][2]
                     total_weight += link_weight[link]
                 
                 if total_weight >0:
@@ -271,35 +260,9 @@ class Pattern(object):
                     his_day_spd[day].append(0)
                     print "No available historical weight in timeslot",t
                     
-        v1_day_spd = {}
-        for day in range(0, 7):
-            v1_day_spd[day] = []
-            for t in range(0, 60):
-                link_weight = {}
-                for link in mapping[road_name][direction][section]:
-                    if link in v1_day_link_weight[day]:
-                        weight = v1_day_link_weight[day][link][t]
-                        if weight > 0:
-                            link_weight[link] = weight
-                    else:
-                        pass#print "No available v1 weight on link", link
-                
-                total_len = 0
-                total_weight = 0
-
-                for link in link_weight:
-                    total_len += link_nodes[road_name][link][2]
-                    total_weight += link_weight[link]
-                
-                if total_weight >0:
-                    spd = (float(total_len)*1609.344/float(total_weight)) * 3600.0
-                    v1_day_spd[day].append(spd)
-                else:
-                    v1_day_spd[day].append(0)
-                    print "No available v1 weight in timeslot",t
         
-        return his_day_spd, v1_day_spd
-        '''
+        return his_day_spd
+        
     
     def cal_similarity(self, x, y):
         p = {}
@@ -333,20 +296,20 @@ class Pattern(object):
         
         mapping = self.map_link_sensor()
         self.pre_links(mapping)
-        '''
+        
         print "Connecting to database ......"
         self.his_conn_to = psycopg2.connect(host='graph-3.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='ds2015')
         if self.his_conn_to:
             print "Connected."
         self.his_cursor = self.his_conn_to.cursor()
-        '''
+        
         for road in mapping:
             sensor_loc, sensor_data = self.road_sensor_data(road, mapping)
             for direction in mapping[road]:
                 print "Begin road", road,"direction:",direction
                 for section in mapping[road][direction]:
                     rp = self.realtime_pattern(road, direction, section, mapping, sensor_loc, sensor_data)
-                    hp, v1p = self.historical_pattern(road, direction, section, mapping)
+                    hp = self.historical_pattern(road, direction, section, mapping)
                     
                     for d in range(0,7):
                         if rp[d].count(0) == 60:
@@ -372,11 +335,9 @@ class Pattern(object):
                     for d in range(0,7):  
                         rp_d = Utils.list_to_str(rp[d])
                         hp_d = Utils.list_to_str(hp[d])
-                        v1p_d = Utils.list_to_str(v1p[d])
-                        point_rt_his = Utils.list_to_str(self.cal_similarity(rp[d], hp[d]))
-                        point_rt_v1 = Utils.list_to_str(self.cal_similarity(rp[d], v1p[d]))
+                        point = Utils.list_to_str(self.cal_similarity(rp[d], hp[d]))
                         
-                        sql = "insert into \"SS_SECTION_PATTERN_ALL\"(road_name, direction, from_postmile, to_postmile, day, realtime_pattern, historical_pattern, v1_pattern, similarity_rt_his, similarity_rt_v1) values(%s,%d,%d,%d,%s,%s,%s,%s,%s,%s)"%(road, direction, section*3, section*3+3, days[d], rp_d, hp_d, v1p_d, point_rt_his, point_rt_v1)
+                        sql = "insert into \"SS_SECTION_PATTERN_ALL\"(road_name, direction, from_postmile, to_postmile, day, realtime_pattern, historical_pattern, similarity) values(%s,%d,%d,%d,%s,%s,%s,%s)"%(road, direction, section*3, section*3+3, days[d], rp_d, hp_d, point)
                         
                         self.cursor.execute(sql)
                         
