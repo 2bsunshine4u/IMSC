@@ -41,7 +41,7 @@ class Map(object):
         link_loc = {}
     
         if function_class_numeric == 1:
-            sql = "select link_id, from_node_id, to_node_id, name_default from links where function_class_numeric=1 and name_default like '%" + road_name + "%'"  
+            sql = "select link_id, from_node_id, to_node_id, name_default from links where function_class_numeric=1 and ramp <> true and name_default like '%" + road_name + "%'"  
         self.cursor.execute(sql)
         nodes = self.cursor.fetchall()
         

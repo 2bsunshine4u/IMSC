@@ -23,18 +23,26 @@ if __name__ == '__main__':
             
             
     roads = []
-            
-    for road in road_sections:        
+        
+    keys = road_sections.keys()
+    keys.sort(key=lambda x:int(x))
+    for road in keys:  
+        p = str(road)+" => array("
         if road not in roads:
             roads.append(int(road))
         for direction in road_sections[road]:
-            s = "road_name["+road+'][' + str(direction)+']=['
+            s = "road_sections["+road+'][' + str(direction)+']=['
             for (from_pm, to_pm) in road_sections[road][direction]:
                 s += str(from_pm)+','
             if s[-1] == ',':
-                s = s[:-1] + ']'
+                s = s[:-1] + '];'
             s += '\n'
             fileout.write(s)
+            
+            p += str(direction)+','
+        p = p[:-1]+'),'
+        print p
+            
     print roads
     
     fileout.close()

@@ -36,10 +36,7 @@
       echo "Error : Unable to open database\n";
     } 
     $sql = 'SELECT * from ' .'"'.'SS_SECTION_PATTERN_ALL'.'"'.' WHERE road_name='."'".$road_name."'".' AND direction='.
-            $direction.' AND from_postmile='.$postmile.' AND day='."'".$day."'";//注意空格和单双引号
-    /*$sql =<<<EOF
-  SELECT * from "SS_SECTION_PATTERN" WHERE road_name = '2' ;
-EOF;*/
+            $direction.' AND from_postmile='.$postmile.' AND day='."'".$day."'";
     $ret = pg_query($db, $sql);
     if(!$ret){
       echo pg_last_error($db);
@@ -52,7 +49,7 @@ EOF;*/
       $historical_pattern = explode(",", $ex_row2);//pattern2
       $ex_row3 = substr($row[7], 1, strlen($row[7])-2);
       $si = explode(",", $ex_row3);//similarity
-      foreach ($realtime_pattern as $key => $value) {//数据库中读出"NULL",但是js识别需要"null"
+      foreach ($realtime_pattern as $key => $value) {//check null
         if($value=="NULL")
           $realtime_pattern[$key] = null;
       }
@@ -131,7 +128,7 @@ EOF;*/
     <th>Realtime_pattern: </th>
     <th><hr width=50 noshade color="#0000FF"></th>
     <th>&nbsp;Historical_pattern: </th>
-    <th><hr width=50 noshade color="#FF0000"></th>
+    <th><hr width=50 noshade color="#00FF00"></th>
   </tr>
 </table>
 <canvas class="can_cen" id="myChart" width="1050" height="530"></canvas>
@@ -141,8 +138,8 @@ EOF;*/
 <script src="Chart.min.js"></script>
 <script src="jquery-2.1.4.js"></script>
 <script type="text/javascript">
-$(function(){  //js中方法
-    var road_name = new Array();//声明三维数组
+$(function(){  
+    var road_name = new Array();
     for(var k=0;k<1000;k++){
       road_name[k] = new Array();
         for(var m=0;m<4;m++){
@@ -150,7 +147,7 @@ $(function(){  //js中方法
           road_name[k][m] = null;
         }
     }
-  //存放在数组中的下拉菜单内容，可放在单独文件中
+
   road_name[605][0]=[0,3,6,9,12,15,18,21,24];   
   road_name[605][1]=[0,3,6,9,12,15,18,21,24];         
   road_name[215][0]=[0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45]
@@ -211,13 +208,13 @@ $(function(){  //js中方法
   road_name[55][1]=[0,3,6,9,12]
   road_name[241][0]=[0,3,6,9,12,15,18]
   road_name[241][1]=[0,3,6,9,12,15,18,21]
-  //每次加载
+  
   sero =  $("select[name='road_name']").val();
   $("select[name='direction']").empty();
   for(var i in road_name[sero]){
     if(road_name[sero][i]){
       var tempdir = <?php echo $direction?>;
-      if(i==tempdir){//提交时选中的菜单项要显示出来
+      if(i==tempdir){
         if(i==0){
           i = 'North';
         }
@@ -277,7 +274,7 @@ $(function(){  //js中方法
     $("select[name='postmile']").append(option);  
   } 
 
-  //每次更改road_name菜单时加载direction菜单
+  //every time you change the road_name, direction change
   $("select[name='road_name']").change(function() {  
   var selected_value = $(this).val();  
   var dir =  $("select[name='direction']").val();    
@@ -308,12 +305,11 @@ $(function(){  //js中方法
     }
   }                  
   });  
-  //
+
   
   $("select[name='direction']").change(function() {  
     var dir = $(this).val();   
     var ro  = $("select[name='road_name']").val();  
-    //被选中的option   
     $("select[name='postmile']").empty();
     if(dir=='North'){
       dir = 0;
@@ -353,25 +349,25 @@ $(function(){  //js中方法
       }	
      ,{
         fillColor : "rgba(255,255,255,0)",
-        strokeColor : "rgba(255,0,0,1)",
-        pointColor : "rgba(255,20,147,1)",
-        pointStrokeColor : "#fff",
+        strokeColor : "rgba(0,255,0,1)",
+        pointColor : "rgba(34,140,34,1)",
+	pointStrokeColor : "#fff",
         data : historical_pattern
       },
       ]
     }
   if(realtime_pattern || historical_pattern){
      var myNewChart = new Chart(ctx).Line(data,{
-                scaleOverride :true ,   //是否用硬编码重写y轴网格线
-                scaleSteps : 11,        //y轴刻度的个数
-                scaleStepWidth : 10,   //y轴每个刻度的宽度
-                scaleStartValue : 20,    //y轴的起始值
-                pointDot : true,        //是否显示点
-                pointDotRadius : 5,     //点的半径  
-                pointDotStrokeWidth : 1,//点的线宽
-                datasetStrokeWidth : 3, //数据线的线宽
-                animation : true,       //是否有动画效果
-                animationSteps : 60    //动画的步数
+                scaleOverride :true ,   
+                scaleSteps : 11,        
+                scaleStepWidth : 10,   
+                scaleStartValue : 20,    
+                pointDot : true,        
+                pointDotRadius : 5,     
+                pointDotStrokeWidth : 1,
+                datasetStrokeWidth : 3, 
+                animation : true,      
+                animationSteps : 60    
                 } );
   }
       }); 

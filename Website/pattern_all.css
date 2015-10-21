@@ -1,0 +1,13 @@
+table.main {
+    text-align: center;
+    margin: auto;
+    width: 1200px;
+}   
+table.section {
+    text-align: center;
+    margin: auto;
+    
+}
+td{
+    padding: 6px;
+}

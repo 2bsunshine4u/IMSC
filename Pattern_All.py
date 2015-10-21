@@ -16,7 +16,7 @@ class Pattern(object):
         self.conn_to = psycopg2.connect(host='osm-workspace-2.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='osm', user='ds', password='ds2015')
         if self.conn_to:
             print "Connected."
-            self.conn_to.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+            #self.conn_to.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
         self.cursor = self.conn_to.cursor()
         
         
@@ -34,7 +34,7 @@ class Pattern(object):
         results = self.cursor.fetchall()
         mapping = {}
         for road_name, direction, from_postmile,link,sensor in results:
-            if int(road_name) == 10: 
+            if int(road_name) >= 100 and int(road_name) < 200: 
                 if road_name not in mapping:
                     mapping[road_name] = {}
                 if direction not in mapping[road_name]:
@@ -214,7 +214,7 @@ class Pattern(object):
         return his_day_spd
         '''
         
-        days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
         
         print "historical_data preprocessing"
         
@@ -225,7 +225,7 @@ class Pattern(object):
             his_day_link_weight[d] = {}
             for link in mapping[road_name][direction][section]:
                 start_node, end_node = self.links[road_name][link][:2]
-                sql = "select weights from edge_weight_metric_"+day+" WHERE start_originalid = " + str(start_node) + " AND end_originalid = "+str(end_node)
+                sql = "select weights_" + day + " from edge_weight_metric WHERE start_originalid = " + str(start_node) + " AND end_originalid = "+str(end_node)
                 self.his_cursor.execute(sql)
                 results = self.his_cursor.fetchall()
                 if len(results) > 0:
@@ -302,6 +302,13 @@ class Pattern(object):
         if self.his_conn_to:
             print "Connected."
         self.his_cursor = self.his_conn_to.cursor()
+        
+        '''
+        print "Table has been emptied!!!"
+        sql = "truncate \"SS_SECTION_PATTERN_ALL\""
+        self.cursor.execute(sql)
+        self.conn_to.commit()
+        '''
         
         for road in mapping:
             sensor_loc, sensor_data = self.road_sensor_data(road, mapping)
