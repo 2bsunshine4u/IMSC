@@ -90,17 +90,17 @@ class Map(object):
                     filtered_links.append(link_id)
                 elif direction == 1 and (heading >= 90 and heading < 270):
                     filtered_links.append(link_id)
-                elif direction == 2 and (heading >= 180 and heading < 360):
+                elif direction == 2 and (heading >= 0 and heading < 180):
                     filtered_links.append(link_id)
-                elif direction == 3 and (heading >= 0 and heading < 180):
+                elif direction == 3 and (heading >= 180 and heading < 360):
                     filtered_links.append(link_id)
-                elif direction == 4 and (heading >= 225 or heading < 45):
+                elif direction == 4 and (heading >= 315 or heading < 135):
                         filtered_links.append(link_id)
-                elif direction == 5 and (heading >= 135 and heading < 315):
+                elif direction == 5 and (heading >= 45 and heading < 225):
                         filtered_links.append(link_id)
-                elif direction == 6 and (heading >= 45 and heading < 225):
+                elif direction == 6 and (heading >= 135 and heading < 315):
                         filtered_links.append(link_id)
-                elif direction == 7 and (heading >= 315 or heading < 135):
+                elif direction == 7 and (heading >= 225 or heading < 45):
                         filtered_links.append(link_id)
                 
         return filtered_links
@@ -134,6 +134,7 @@ class Map(object):
             filtered_links.sort(key=lambda x:link_loc[x][0][0]-link_loc[x][0][1],reverse=True)
 
         print "After range and bearing filtering, there are " + str(len(filtered_links)) + " links left"
+        
         return filtered_links
     
     def fill_path(self, link_loc, filtered_links, section_len):
@@ -162,6 +163,7 @@ class Map(object):
             path[cur_sec].append(filtered_links[cur_idx])
             
             cur_idx += 1
+            
         '''
         if len(path[cur_sec]) <= 3:
             print "The last section is meaningless, del it"
@@ -282,7 +284,7 @@ class Sensor(object):
                 lon2, lat2 = link_loc[link][1]
                 for sensor in sensors:
                     lon_sen, lat_sen = sensor[1]                
-                    if (Utils.is_in_bbox(lon1,lat1,lon2,lat2,lon_sen,lat_sen) and Utils.point2line(lon_sen,lat_sen,lon1,lat1,lon2,lat2) < 200) or Utils.map_dist(lon1,lat1,lon_sen,lat_sen) <= 75 or Utils.map_dist(lon2,lat2,lon_sen,lat_sen) <= 75:
+                    if (Utils.is_in_bbox(lon1,lat1,lon2,lat2,lon_sen,lat_sen) and Utils.point2line(lon_sen,lat_sen,lon1,lat1,lon2,lat2) < 200):
                         #print "find sensor",lat_sen,lon_sen,"on link:",link_loc[link][:2]
                         dict_road[section][link].append(sensor[0])
                         if sensor not in used_s:
@@ -311,12 +313,12 @@ class Sensor(object):
                                 dist2 = d
 
                 if len(dict_road[section][link]) == 0:
-                    if dist1 < 3000:
+                    if dist1 < 1000:
                         dict_road[section][link].append(sen1[0])
                         if sen1 not in used_s:
                             used_s.append(sen1)
 
-                    if dist2 < 3000:
+                    if dist2 < 1000:
                         dict_road[section][link].append(sen2[0])
                         if sen2 not in used_s:
                             used_s.append(sen2)  
@@ -358,13 +360,13 @@ if __name__ == '__main__':
     
     #0:N 1:S 2:E 3:W 4:NE 5:SE 6:SW 7:NW
     hwy_set = [
-        ("2", 2, 2),
-        ("2", 3, 3),
+        ("2", 4, 4, 2),
+        ("2", 6, 6, 3),
         ("5", 0, 3),
         ("5", 1, 2),
         ("10",2, 2),
         ("10",3, 3),
-        ("14", 4, 0, 2),
+        ("14", 4, 0, 0),
         ("14", 1, 6, 1),
         ("15", 0, 0),
         ("15", 1, 1),
@@ -391,7 +393,7 @@ if __name__ == '__main__':
         ("91", 2, 2), 
         ("91", 3, 3),
         ("101", 0, 3),
-        ("101", 2, 1),
+        ("101", 2, 1, 1),
         ("105", 2, 2), 
         ("105", 3, 3),
         ("110", 0, 0), 
@@ -420,6 +422,12 @@ if __name__ == '__main__':
         ("710", 1, 1)
               ]   
     lamap.pre_nodes()
+    
+    print "Table has been emptied!!"
+    sql = "truncate \"SS_SENSOR_MAPPING_ALL\""
+    lamap.cursor.execute(sql)
+    lamap.conn_to.commit()
+    
     for hwy in hwy_set:
         road_name = hwy[0]
         direction = hwy[1]
@@ -440,9 +448,9 @@ if __name__ == '__main__':
                 if len(mapping[section][link]) == 0:
                     sql = "insert into \"SS_SENSOR_MAPPING_ALL\" (road_name,direction,from_postmile,to_postmile,link_id) values (%s,%d,%d,%d,%d)"%(road_name,show_dir,from_postmile,to_postmile,link)
                     lamap.cursor.execute(sql)
-                    print road_name, section, link, "no sensor"
+                    #print road_name, show_dir, section, link, "no sensor"
                 else:
-                    print road_name, direction, section, link, mapping[section][link]
+                    #print road_name, show_dir, section, link, mapping[section][link]
                     for sensor in mapping[section][link]:
                         sql = "insert into \"SS_SENSOR_MAPPING_ALL\" (road_name,direction,from_postmile,to_postmile,link_id,sensor_id) values (%s,%d,%d,%d,%d,%d)"%(road_name,show_dir,from_postmile,to_postmile,link,sensor)
                         lamap.cursor.execute(sql)

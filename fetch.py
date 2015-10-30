@@ -31,7 +31,7 @@ if __name__ == '__main__':
         if road not in roads:
             roads.append(int(road))
         for direction in road_sections[road]:
-            s = "road_sections["+road+'][' + str(direction)+']=['
+            s = "road_name["+road+'][' + str(direction)+']=['
             for (from_pm, to_pm) in road_sections[road][direction]:
                 s += str(from_pm)+','
             if s[-1] == ',':

@@ -23,18 +23,24 @@ class Pattern(object):
     def close_db(self):
         self.conn_to.commit()
         self.conn_to.close()
-        
-        #self.his_conn_to.close()
     
     def map_link_sensor(self):
     #fetch mapping information from database
+        sql = "select distinct road_name from \"SS_SECTION_PATTERN_ALL\""
+        self.cursor.execute(sql)
+        results = self.cursor.fetchall()
+        roads = []
+        for road_name in results:
+            roads.append(road_name[0])
+        print "These roads have been processed previously:", roads
+        
         print "fetching mapping information from database"
         sql = "select road_name, direction, from_postmile, link_id, sensor_id from \"SS_SENSOR_MAPPING_ALL\" "
         self.cursor.execute(sql)
         results = self.cursor.fetchall()
         mapping = {}
         for road_name, direction, from_postmile,link,sensor in results:
-            if int(road_name) >= 100 and int(road_name) < 200: 
+            if road_name not in roads: 
                 if road_name not in mapping:
                     mapping[road_name] = {}
                 if direction not in mapping[road_name]:
@@ -53,7 +59,7 @@ class Pattern(object):
         
         return mapping
     
-    def pre_links(self, mapping):
+    def pre_nodes(self, mapping):
         print "preprocessing nodes"
         sql = "select node_id, ST_AsText(geom) from nodes"
         self.cursor.execute(sql)
@@ -61,19 +67,19 @@ class Pattern(object):
         for node_id, pos in results:
             if node_id not in self.nodes:
                 self.nodes[node_id] = Utils.extract_loc_from_geometry(pos)
-        
-        for road in mapping:
-            print "preprocessing links on road:", road
-            self.links[road] = {}
-            for direction in mapping[road]:
-                for section in mapping[road][direction]:
-                    for link in mapping[road][direction][section]:
-                        sql = "select from_node_id, to_node_id, length from links where link_id = " + str(link)
-                        self.cursor.execute(sql)
-                        start_node, end_node, length = self.cursor.fetchall()[0]
-                        if length <= 0:
-                            print "Wrong Length Data!"
-                        self.links[road][link] = [start_node, end_node, length]
+    
+    def pre_links(self, road_name, mapping):
+        print "preprocessing links on road:", road_name
+        self.links[road_name] = {}
+        for direction in mapping[road_name]:
+            for section in mapping[road_name][direction]:
+                for link in mapping[road_name][direction][section]:
+                    sql = "select from_node_id, to_node_id, length from links where link_id = " + str(link)
+                    self.cursor.execute(sql)
+                    start_node, end_node, length = self.cursor.fetchall()[0]
+                    if length <= 0:
+                        print "Wrong Length Data!"
+                    self.links[road_name][link] = [start_node, end_node, length]
         
         return self.links          
        
@@ -259,7 +265,6 @@ class Pattern(object):
                 else:
                     his_day_spd[day].append(0)
                     print "No available historical weight in timeslot",t
-                    
         
         return his_day_spd
         
@@ -295,13 +300,7 @@ class Pattern(object):
         days = ["'Monday'", "'Tuesday'", "'Wednesday'", "'Thursday'", "'Friday'", "'Saturday'", "'Sunday'"]
         
         mapping = self.map_link_sensor()
-        self.pre_links(mapping)
-        
-        print "Connecting to database ......"
-        self.his_conn_to = psycopg2.connect(host='graph-3.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='ds2015')
-        if self.his_conn_to:
-            print "Connected."
-        self.his_cursor = self.his_conn_to.cursor()
+        self.pre_nodes(mapping)
         
         '''
         print "Table has been emptied!!!"
@@ -311,7 +310,15 @@ class Pattern(object):
         '''
         
         for road in mapping:
+            self.pre_links(road, mapping)
             sensor_loc, sensor_data = self.road_sensor_data(road, mapping)
+            
+            print "Connecting to historical database ......"
+            self.his_conn_to = psycopg2.connect(host='graph-3.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='ds2015')
+            if self.his_conn_to:
+                print "Connected."
+            self.his_cursor = self.his_conn_to.cursor()
+            
             for direction in mapping[road]:
                 print "Begin road", road,"direction:",direction
                 for section in mapping[road][direction]:
@@ -347,6 +354,10 @@ class Pattern(object):
                         sql = "insert into \"SS_SECTION_PATTERN_ALL\"(road_name, direction, from_postmile, to_postmile, day, realtime_pattern, historical_pattern, similarity) values(%s,%d,%d,%d,%s,%s,%s,%s)"%(road, direction, section*3, section*3+3, days[d], rp_d, hp_d, point)
                         
                         self.cursor.execute(sql)
+                        
+            self.conn_to.commit();
+            
+            self.his_conn_to.close()
                         
                 
                 

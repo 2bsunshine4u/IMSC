@@ -17,7 +17,7 @@ if ($_SERVER["REQUEST_METHOD"] == "GET"):
 
 $road_similarity = array();
 
-$sql = 'SELECT road_name, direction, from_postmile, similarity_rt_his from ' .'"'.'SS_SECTION_PATTERN'.'"'.' WHERE day='."'".$weekday."'";
+$sql = 'SELECT road_name, direction, from_postmile, similarity from ' .'"'.'SS_SECTION_PATTERN_ALL'.'"'.' WHERE day='."'".$weekday."'";
 $ret = pg_query($db, $sql);
 if(!$ret){
     echo pg_last_error($db);
@@ -89,7 +89,27 @@ ksort($road_similarity);
     <?php 
         foreach ($road_similarity as $road_name=>$directions){
             foreach ($directions as $direction=>$similarity){
-                echo "<tr id='R$road_name"."_"."$direction' onclick=\"click_road('$road_name','$direction')\"><td>".$road_name."</td><td>$direction</td><td>".$weekday."</td><td>$similarity[1]</td><td>$similarity[2]</td><td>$similarity[3]</td><td>$similarity[4]</td><td>$similarity[0]</td></tr>";
+                if ($direction == 0){
+                    $dir = "North";
+                }
+                elseif ($direction == 1){
+                    $dir = "South";
+                }
+                elseif ($direction == 2){
+                    $dir = "East";
+                }
+                elseif ($direction == 3){
+                    $dir = "West";
+                }
+                foreach ($similarity as $key=>$value){
+                    if ($value < 8){
+                        $similarity[$key] = "<td bgcolor='#FFFF00'>$value";
+                    }
+                    else{
+                        $similarity[$key] = "<td>$value";
+                    }
+                }
+                echo "<tr id='R$road_name"."_"."$direction' onclick=\"click_road('$road_name','$direction')\"><td>".$road_name."</td><td>$dir</td><td>".$weekday."</td>$similarity[1]</td>$similarity[2]</td>$similarity[3]</td>$similarity[4]</td>$similarity[0]</td></tr>";
             }
         }
     ?>
@@ -98,6 +118,19 @@ ksort($road_similarity);
 </body>
 <script type="text/javascript">
     function click_road(road_name, direction){
+        var dir;
+        if (direction == 0){
+            dir = "North";
+        }
+        else if(direction == 1){
+            dir = "South";
+        }
+        else if (direction == 2){
+            dir = "East";
+        }
+        else if (direction == 3){
+            dir = "West";
+        }
         var selected_road = null;
         if ($(".section_row").length > 0){
             selected_road = $(".section_row").prev();
@@ -110,7 +143,15 @@ ksort($road_similarity);
                 var section_similarity = data;
                 for (var section=0; section < section_similarity.length; section ++){
                     if (section_similarity[section]){
-                        table2html += "<tr id='S"+road_name+"_"+direction+"_"+section+"' onclick=\"click_section('"+road_name+"','"+direction+"','"+section+"');\"><td>"+road_name+"</td><td>"+direction+"</td><td>"+(section*3)+"</td><td>"+(section*3+3)+"</td><td><?php echo $weekday; ?></td><td>"+section_similarity[section][1]+"</td><td>"+section_similarity[section][2]+"</td><td>"+section_similarity[section][3]+"</td><td>"+section_similarity[section][4]+"</td><td>"+section_similarity[section][0]+"</td></tr>"; 
+                        for (var i=0; i < 5; i++){
+                            if (section_similarity[section][i] < 8){
+                                section_similarity[section][i] = "<td bgcolor='#FFFF00'>" + section_similarity[section][i];
+                            }
+                            else{
+                                section_similarity[section][i] = "<td>" + section_similarity[section][i];
+                            }
+                        }
+                        table2html += "<tr id='S"+road_name+"_"+direction+"_"+section+"' onclick=\"click_section('"+road_name+"','"+direction+"','"+section+"');\"><td>"+road_name+"</td><td>"+dir+"</td><td>"+(section*3)+"</td><td>"+(section*3+3)+"</td><td><?php echo $weekday; ?></td>"+section_similarity[section][1]+"</td>"+section_similarity[section][2]+"</td>"+section_similarity[section][3]+"</td>"+section_similarity[section][4]+"</td>"+section_similarity[section][0]+"</td></tr>"; 
                     }
                 }
                 table2html += "</table></td></tr>";
@@ -184,7 +225,7 @@ elseif ($_SERVER["REQUEST_METHOD"] == "POST"):
     if (!isset($_POST["section"])):
         $section_similarity = array();
 
-        $sql = 'SELECT from_postmile, to_postmile, similarity_rt_his from ' .'"'.'SS_SECTION_PATTERN'.'"'.' WHERE road_name='."'".$road_name."'".' AND direction='.$direction.' AND day='."'".$weekday."'";
+        $sql = 'SELECT from_postmile, to_postmile, similarity from ' .'"'.'SS_SECTION_PATTERN_ALL'.'"'.' WHERE road_name='."'".$road_name."'".' AND direction='.$direction.' AND day='."'".$weekday."'";
         $ret = pg_query($db, $sql);
         if(!$ret){
             echo pg_last_error($db);
@@ -220,7 +261,7 @@ elseif ($_SERVER["REQUEST_METHOD"] == "POST"):
 
         $patterns = array();
         
-        $sql = "SELECT realtime_pattern, historical_pattern from \"SS_SECTION_PATTERN\" WHERE road_name = '$road_name' AND direction = $direction AND from_postmile = $from_postmile AND day = '$weekday'";
+        $sql = "SELECT realtime_pattern, historical_pattern from \"SS_SECTION_PATTERN_ALL\" WHERE road_name = '$road_name' AND direction = $direction AND from_postmile = $from_postmile AND day = '$weekday'";
         $ret = pg_query($db, $sql);
         if(!$ret){
             echo pg_last_error($db);
@@ -231,6 +272,15 @@ elseif ($_SERVER["REQUEST_METHOD"] == "POST"):
         $realtime_pattern = explode(",", $raw_realtime_pattern);
         $raw_historical_pattern = substr($row[1], 1, strlen($row[1])-2);
         $historical_pattern = explode(",", $raw_historical_pattern);
+
+        foreach ($realtime_pattern as $key => $value) {
+            if($value=="NULL")
+                $realtime_pattern[$key] = null;
+        }
+        foreach ($historical_pattern as $key => $value) {
+            if($value=="NULL")
+                $historical_pattern[$key] = null;
+        }
         
         $patterns['realtime_pattern'] = $realtime_pattern;
         $patterns['historical_pattern'] = $historical_pattern;

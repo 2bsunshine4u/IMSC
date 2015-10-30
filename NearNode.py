@@ -11,7 +11,7 @@ class FindNode(object):
             print "Connected."
         self.cursor = self.conn_to.cursor() 
 
-        sql = "select road_name, direction, from_postmile, to_postmile,link_id from \"SS_SENSOR_MAPPING\""
+        sql = "select road_name, direction, from_postmile, to_postmile,link_id from \"SS_SENSOR_MAPPING_ALL\""
         self.cursor.execute(sql)
         results = self.cursor.fetchall()
         for road_name, direction, from_postmile, to_postmile, link_id in results:
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     fd = FindNode()
     
     points = [
-        (-118.040516, 33.890513, 0)
+        (34.007892, -117.825872, 3)
     ]
     
     fd.display_all(points)
