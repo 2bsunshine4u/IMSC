@@ -27,47 +27,88 @@ class Pattern(object):
     def map_link_sensor(self):
     #fetch mapping information from database
         roads = []
-        roads = []
+        
         sql = "select distinct road_name from ss_arterial_pattern"
         self.cursor.execute(sql)
         results = self.cursor.fetchall()
         for road_name in results:
-            roads.append(road_name[0])
+            roads.append(road_name)
         print "These roads have been processed previously:", roads
         
         print "fetching tmc information from database"
-        sql = "select tmc, road, direction, road_order, start_longitude, start_latitude, end_longitude, end_latitude, miles from tmc_identification"
+        sql = "select tmc, road, direction, start_longitude, start_latitude, end_longitude, end_latitude, miles from tmc_identification"
         self.cursor.execute(sql)
         results = self.cursor.fetchall()
         links = {}
-        for tmc, road_name, direction, road_order, start_longitude, start_latitude, end_longitude, end_latitude, miles in results:
+        for tmc, road_name, direction, start_longitude, start_latitude, end_longitude, end_latitude, miles in results:
             if road_name not in roads: 
                 if road_name not in links:
                     links[road_name] = {}
                 if direction not in links[road_name]:
-                    links[road_name][direction] = {}
-                if road_order not in links[road_name][direction]:
-                    links[road_name][direction][road_order] = []
-                tmc_inf = {'tmc': tmc, 'start': (float(start_longitude), float(start_latitude)), 'end': (float(end_longitude), float(end_latitude)), 'miles': float(miles)}
-                links[road_name][direction][road_order].append(tmc_inf)
-                if len(links[road_name][direction][road_order]) > 1:
-                    if direction == "NORTHBOUND":
-                        links[road_name][direction][road_order].sort(key=lambda x:x['start'][1], reverse=False)
-                    elif direction == "SOUTHBOUND":
-                        links[road_name][direction][road_order].sort(key=lambda x:x['start'][1], reverse=True)
-                    elif direction == "EASTBOUND":
-                        links[road_name][direction][road_order].sort(key=lambda x:x['start'][0], reverse=False)
-                    elif direction == "WESTBOUND":
-                        links[road_name][direction][road_order].sort(key=lambda x:x['start'][0], reverse=True)
-                    else:
-                        print "INVALID DIRECTION!!\n\n\n"
+                    links[road_name][direction] = []    
+                links[road_name][direction].append({'tmc': tmc, 'start': (float(start_longitude), float(start_latitude)), 'end': (float(end_longitude), float(end_latitude)), 'miles': float(miles)})
                 
                 if road_name not in self.tmc:
                     self.tmc[road_name] = []
                 if tmc not in self.tmc[road_name]:
                     self.tmc[road_name].append(tmc)
         
-        return links
+        print "Sorting the links"
+        for road_name in links:
+            for direction in links[road_name]:
+                if len(links[road_name][direction]) > 1:
+                    if direction == "NORTHBOUND":
+                        links[road_name][direction].sort(key=lambda x:x['start'][1], reverse=False)
+                    elif direction == "SOUTHBOUND":
+                        links[road_name][direction].sort(key=lambda x:x['start'][1], reverse=True)
+                    elif direction == "EASTBOUND":
+                        links[road_name][direction].sort(key=lambda x:x['start'][0], reverse=False)
+                    elif direction == "WESTBOUND":
+                        links[road_name][direction].sort(key=lambda x:x['start'][0], reverse=True)
+                    else:
+                        print "INVALID DIRECTION!!\n\n\n"
+                        
+        sorted_links = {}
+        for road_name in links:
+            sorted_links[road_name] = {}
+            for direction in links[road_name]:
+                sorted_links[road_name][direction] = []
+                
+                road_links = links[road_name][direction][:]
+                temp = 0
+                while len(road_links) > 0:
+                    if len(sorted_links[road_name][direction]) == 0:
+                        flag = True
+                        while flag:
+                            for tmc_inf in range(0, len(road_links)):
+                                if road_links[tmc_inf]['end'] == road_links[temp]['start']:
+                                    temp = tmc_inf
+                                    break
+                                flag = False
+                    else:
+                        flag = False
+                        for tmc_inf in range(0, len(road_links)):
+                            if sorted_links[road_name][direction][-1]['end'] == road_links[tmc_inf]['start']:
+                                temp = tmc_inf
+                                flag = True
+                                break
+                        if flag == False:
+                            if sorted_links[road_name][direction][-1] == links[road_name][direction][-1]:
+                                break
+                            else:
+                                dist = Utils.map_dist(sorted_links[road_name][direction][-1]['end'][0], sorted_links[road_name][direction][-1]['end'][1], road_links[temp]['start'][0], road_links[temp]['start'][1])
+                                for tmc_inf in range(0, len(road_links)):
+                                    dist2 = Utils.map_dist(sorted_links[road_name][direction][-1]['end'][0], sorted_links[road_name][direction][-1]['end'][1], road_links[tmc_inf]['start'][0], road_links[tmc_inf]['start'][1])
+                                    if dist2 < dist:
+                                        temp = tmc_inf
+                                        dist = Utils.map_dist(sorted_links[road_name][direction][-1]['end'][0], sorted_links[road_name][direction][-1]['end'][1], road_links[temp]['start'][0], road_links[temp]['start'][1])
+                                        
+                    sorted_links[road_name][direction].append(road_links[temp])
+                    del(road_links[temp]) 
+                    if temp >= len(road_links):
+                        temp = len(road_links) - 1
+        
+        return sorted_links
     
     def sectionize (self, links, section_len):
         print "Sectionizing!"
@@ -80,14 +121,15 @@ class Pattern(object):
                 
                 mapping[road_name][direction][0] = []
                 cur_sec = 0
-                prev_loc = links[road_name][direction][1][0]['start']
+                prev_loc = links[road_name][direction][0]['start']
                 cur_miles = 0
-                for road_order in range(1, len(links[road_name][direction])+1):
-                    cur_lon = links[road_name][direction][road_order][0]['start'][0]
-                    cur_lat = links[road_name][direction][road_order][0]['start'][1]
+                for idx in range(0, len(links[road_name][direction])):
+                    cur_lon = links[road_name][direction][idx]['start'][0]
+                    cur_lat = links[road_name][direction][idx]['start'][1]
                     if cur_miles > section_len:
                         cur_sec += 1
                         mapping[road_name][direction][cur_sec] = []
+                        cur_miles = 0
                     if not prev_loc == (cur_lon, cur_lat):
                         while cur_miles + (Utils.map_dist(prev_loc[0], prev_loc[1], cur_lon, cur_lat) / 1609.344) > section_len:
                             cur_sec += 1
@@ -101,12 +143,13 @@ class Pattern(object):
                         prev_loc = (cur_lon, cur_lat)
                     
                     
-                    miles = sum(map(lambda x: x['miles'], links[road_name][direction][road_order]))
-                    tmcs = map(lambda x: x['tmc'], links[road_name][direction][road_order])
-                    for tmc in tmcs:
-                        mapping[road_name][direction][cur_sec].append((road_order, tmc))
+                    miles = links[road_name][direction][idx]['miles']
+                    tmc = links[road_name][direction][idx]['tmc']
+                    mapping[road_name][direction][cur_sec].append(tmc)
                     cur_miles += miles
-                    prev_loc = links[road_name][direction][road_order][-1]['end']
+                    prev_loc = links[road_name][direction][idx]['end']
+                    
+        print mapping
                     
         return mapping
         
@@ -171,7 +214,7 @@ class Pattern(object):
                 else:
                     time_end = datetime.time(time.hour,time.minute+15,time.second)
                 avg_spd = []
-                for road_order, tmc in mapping[road_name][direction][section]:
+                for tmc in mapping[road_name][direction][section]:
                     if time in tmc_data[tmc][day]:
                         td = tmc_data[tmc][day][time]
                         spd = sum(td) / len(td)
@@ -181,6 +224,7 @@ class Pattern(object):
                     #print "No available data for section:", road_name, direction, section, "in time:", day, time
                     day_spd[day].append(0)
                 else:
+                    #print "Has available data for section:", road_name, direction, section, "in time:", day, time
                     day_spd[day].append(sum(avg_spd) / len(avg_spd))
                     
                 time = time_end
@@ -276,16 +320,17 @@ class Pattern(object):
             tmc_data = self.road_tmc_data(road_name, mapping)
 
             for direction in mapping[road_name]:
-                print "Begin insert road", road_name,"direction:",direction
                 for section in mapping[road_name][direction]:
-                    rp = self.realtime_pattern(road_name, direction, section, mapping, tmc_data)
-                    
-                    for d in range(0,7):  
-                        rp_d = Utils.list_to_str(rp[d])
-                        
-                        sql = "insert into ss_arterial_pattern (road_name, direction, from_postmile, to_postmile, day, realtime_pattern) values('%s','%s',%d,%d,%s,%s)"%(road_name, direction, section*section_len, (section+1)*section_len, days[d], rp_d)
-                        
-                        self.cursor.execute(sql)
+                    if len(mapping[road_name][direction][section]) > 0:
+                        rp = self.realtime_pattern(road_name, direction, section, mapping, tmc_data)
+
+                        print "begin insert:",road_name,direction,section
+                        for d in range(0,7):  
+                            rp_d = Utils.list_to_str(rp[d])
+
+                            sql = "insert into ss_arterial_pattern (road_name, direction, from_postmile, to_postmile, day, realtime_pattern) values('%s','%s',%d,%d,%s,%s)"%(road_name, direction, section*section_len, (section+1)*section_len, days[d], rp_d)
+
+                            self.cursor.execute(sql)
                         
             self.conn_to.commit();
                         
