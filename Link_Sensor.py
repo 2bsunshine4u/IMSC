@@ -2,7 +2,10 @@ import psycopg2
 import Utils
 
 class Map(object):
-    def __init__(self):
+    def __init__(self, nodes_table, links_table):
+        self.nodes_table = nodes_table
+        self.links_table = links_table
+        
         self.init_db()
         self.link_loc = {}
         self.nodes = {}
@@ -21,7 +24,7 @@ class Map(object):
     def pre_nodes(self):
         #save all nodes' information in a dict
         print "nodes preprocessing"
-        sql = "select node_id, ST_AsText(geom) from nodes"
+        sql = "select node_id, ST_AsText(geom) from "+self.nodes_table
         self.cursor.execute(sql)
         results = self.cursor.fetchall()
         for node_id, pos in results:
@@ -41,7 +44,7 @@ class Map(object):
         link_loc = {}
     
         if function_class_numeric == 1:
-            sql = "select link_id, from_node_id, to_node_id, name_default from links where function_class_numeric=1 and ramp <> true and name_default like '%" + road_name + "%'"  
+            sql = "select link_id, from_node_id, to_node_id, name_default from "+self.links_table+" where function_class_numeric=1 and ramp <> true and name_default like '%" + road_name + "%'"  
         self.cursor.execute(sql)
         nodes = self.cursor.fetchall()
         
@@ -342,7 +345,7 @@ class Sensor(object):
         return dict_sensors_roads
     
 if __name__ == '__main__':
-    lamap = Map()
+    lamap = Map("v3_nodes", "v3_links")
     lasensor = Sensor(lamap.cursor)
 
     min_lon = -119.4370 

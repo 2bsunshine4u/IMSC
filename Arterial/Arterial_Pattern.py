@@ -169,7 +169,7 @@ class Pattern(object):
         #end_dt = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         for tmc in self.tmc[road_name]:
-            sql = "Select timestamp at time zone 'PST', speed from tmc_data where tmc_code = '"+tmc+"' and speed > 1 and speed < 150"
+            sql = "Select timestamp, speed from tmc_data where tmc_code = '"+tmc+"' and speed > 1 and speed < 150"
             self.cursor.execute(sql)
             results = self.cursor.fetchall()
             for dt, speed in results:

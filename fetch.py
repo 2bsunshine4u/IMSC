@@ -10,7 +10,7 @@ if __name__ == '__main__':
         print "Connected."
     cursor = conn_to.cursor() 
     
-    sql = "select road_name, direction, from_postmile, to_postmile from \"SS_SENSOR_MAPPING_ALL\""
+    sql = "select road_name, direction, from_postmile, to_postmile from ss_arterial_pattern"
     cursor.execute(sql)
     results = cursor.fetchall()
     for road_name, direction, from_postmile, to_postmile in results:
@@ -25,13 +25,17 @@ if __name__ == '__main__':
     roads = []
         
     keys = road_sections.keys()
-    keys.sort(key=lambda x:int(x))
+    keys.sort(key=lambda x:x)
     for road in keys:  
         p = str(road)+" => array("
         if road not in roads:
-            roads.append(int(road))
+            roads.append(road)
+            s = "road_name['"+road+"'] = [] \n"
+            fileout.write(s)
         for direction in road_sections[road]:
-            s = "road_name["+road+'][' + str(direction)+']=['
+            s = "road_name['"+road+"']['" + str(direction)+"']=["
+            road_sections[road][direction].sort()
+            
             for (from_pm, to_pm) in road_sections[road][direction]:
                 s += str(from_pm)+','
             if s[-1] == ',':

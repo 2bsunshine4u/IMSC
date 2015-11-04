@@ -3,7 +3,12 @@ import datetime
 import Utils
 
 class Pattern(object):
-    def __init__(self):
+    def __init__(self, mapping_table, pattern_table, nodes_table, links_table):
+        self.mapping_table = mapping_table
+        self.pattern_table = pattern_table
+        self.nodes_table = nodes_table
+        self.links_table = links_table
+        
         self.init_db()
         self.nodes = {}
         self.links = {}
@@ -26,7 +31,7 @@ class Pattern(object):
     
     def map_link_sensor(self):
     #fetch mapping information from database
-        sql = "select distinct road_name from \"SS_SECTION_PATTERN_ALL\""
+        sql = "select distinct road_name from " + self.pattern_table
         self.cursor.execute(sql)
         results = self.cursor.fetchall()
         roads = []
@@ -35,7 +40,7 @@ class Pattern(object):
         print "These roads have been processed previously:", roads
         
         print "fetching mapping information from database"
-        sql = "select road_name, direction, from_postmile, link_id, sensor_id from \"SS_SENSOR_MAPPING_ALL\" "
+        sql = "select road_name, direction, from_postmile, link_id, sensor_id from " + self.mapping_table
         self.cursor.execute(sql)
         results = self.cursor.fetchall()
         mapping = {}
@@ -61,7 +66,7 @@ class Pattern(object):
     
     def pre_nodes(self, mapping):
         print "preprocessing nodes"
-        sql = "select node_id, ST_AsText(geom) from nodes"
+        sql = "select node_id, ST_AsText(geom) from "+self.nodes_table
         self.cursor.execute(sql)
         results = self.cursor.fetchall()
         for node_id, pos in results:
@@ -74,9 +79,10 @@ class Pattern(object):
         for direction in mapping[road_name]:
             for section in mapping[road_name][direction]:
                 for link in mapping[road_name][direction][section]:
-                    sql = "select from_node_id, to_node_id, length from links where link_id = " + str(link)
+                    sql = "select from_node_id, to_node_id from "+self.links_table+" where link_id = " + str(link)
                     self.cursor.execute(sql)
-                    start_node, end_node, length = self.cursor.fetchall()[0]
+                    start_node, end_node = self.cursor.fetchall()[0]
+                    length = Utils.map_dist(self.nodes[start_node][0], self.nodes[start_node][1], self.nodes[end_node][0],self.nodes[end_node][1])/1609.344
                     if length <= 0:
                         print "Wrong Length Data!"
                     self.links[road_name][link] = [start_node, end_node, length]
@@ -125,7 +131,7 @@ class Pattern(object):
 
             str_dt = dt.strftime("%Y-%m-%d %H:%M:%S")
             dt = datetime.datetime.strptime(str_dt, "%Y-%m-%d %H:%M:%S")
-            if dt.date() >= datetime.date(dt.year,3,18) and dt.date() <= datetime.date(dt.year,11,10):
+            if dt.date() >= datetime.date(dt.year,3,18) and dt.date() <= datetime.date(dt.year,11,1):
                 dt += datetime.timedelta(hours=1)
             day = dt.weekday()
             time = dt.time()
@@ -304,7 +310,7 @@ class Pattern(object):
         
         '''
         print "Table has been emptied!!!"
-        sql = "truncate \"SS_SECTION_PATTERN_ALL\""
+        sql = "truncate " + self.pattern_table
         self.cursor.execute(sql)
         self.conn_to.commit()
         '''
@@ -314,7 +320,7 @@ class Pattern(object):
             sensor_loc, sensor_data = self.road_sensor_data(road, mapping)
             
             print "Connecting to historical database ......"
-            self.his_conn_to = psycopg2.connect(host='graph-3.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='ds2015')
+            self.his_conn_to = psycopg2.connect(host='v3-graph.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='ds2015')
             if self.his_conn_to:
                 print "Connected."
             self.his_cursor = self.his_conn_to.cursor()
@@ -351,7 +357,7 @@ class Pattern(object):
                         hp_d = Utils.list_to_str(hp[d])
                         point = Utils.list_to_str(self.cal_similarity(rp[d], hp[d]))
                         
-                        sql = "insert into \"SS_SECTION_PATTERN_ALL\"(road_name, direction, from_postmile, to_postmile, day, realtime_pattern, historical_pattern, similarity) values(%s,%d,%d,%d,%s,%s,%s,%s)"%(road, direction, section*3, section*3+3, days[d], rp_d, hp_d, point)
+                        sql = "insert into "+ self.pattern_table +" (road_name, direction, from_postmile, to_postmile, day, realtime_pattern, historical_pattern, similarity) values(%s,%d,%d,%d,%s,%s,%s,%s)"%(road, direction, section*3, section*3+3, days[d], rp_d, hp_d, point)
                         
                         self.cursor.execute(sql)
                         
@@ -362,7 +368,7 @@ class Pattern(object):
                 
                 
 if __name__ == '__main__':
-    lapattern = Pattern()
+    lapattern = Pattern( "\"SS_SENSOR_MAPPING_ALL\"", "ss_highway_pattern", "v3_nodes", "v3_links" )
     
     lapattern.generate_all()
     
