@@ -12,7 +12,7 @@ class Map(object):
         
     def init_db(self):
         print "Connecting to database ......"
-        self.conn_to = psycopg2.connect(host='osm-workspace-2.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='osm', user='ds', password='ds2015')
+        self.conn_to = psycopg2.connect(host='osm-workspace-2.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='osm', user='ds', password='928Sbi2sl')
         if self.conn_to:
             print "Connected."
         self.cursor = self.conn_to.cursor()

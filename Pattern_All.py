@@ -18,7 +18,7 @@ class Pattern(object):
         
     def init_db(self):
         print "Connecting to database ......"
-        self.conn_to = psycopg2.connect(host='osm-workspace-2.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='osm', user='ds', password='ds2015')
+        self.conn_to = psycopg2.connect(host='osm-workspace-2.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='osm', user='ds', password='928Sbi2sl')
         if self.conn_to:
             print "Connected."
             #self.conn_to.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
@@ -205,27 +205,6 @@ class Pattern(object):
         return day_spd
         
     def historical_pattern(self, road_name, direction, section, mapping):
-        '''
-        days = ["'Monday'", "'Tuesday'", "'Wednesday'", "'Thursday'", "'Friday'", "'Saturday'", "'Sunday'"]
-        
-        his_day_spd = {} 
-        
-        
-        sql = "select day, historical_pattern from \"SS_SECTION_PATTERN\" where road_name = '"+road_name+"' and direction ="+str(direction)+" and from_postmile = "+str(section*3)
-        self.cursor.execute(sql)
-        results = self.cursor.fetchall()
-        for day,historical_pattern in results:
-            d = days.index("'"+day+"'")
-            his_day_spd[d] = historical_pattern
-            for i in range(0,60):
-                if his_day_spd[d][i]:
-                    his_day_spd[d][i] = float(his_day_spd[d][i])
-                else:
-                    his_day_spd[d][i] = 0
-            
-        return his_day_spd
-        '''
-        
         days = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
         
         print "historical_data preprocessing"
@@ -320,7 +299,7 @@ class Pattern(object):
             sensor_loc, sensor_data = self.road_sensor_data(road, mapping)
             
             print "Connecting to historical database ......"
-            self.his_conn_to = psycopg2.connect(host='v3-graph.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='ds2015')
+            self.his_conn_to = psycopg2.connect(host='v3-graph.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='928Sbi2sl')
             if self.his_conn_to:
                 print "Connected."
             self.his_cursor = self.his_conn_to.cursor()

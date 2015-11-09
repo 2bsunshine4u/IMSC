@@ -2,7 +2,7 @@
 $host = "host=osm-workspace-2.cfmyklmn07yu.us-west-2.rds.amazonaws.com";
 $port = "port=5432";
 $dbname = "dbname=osm";
-$credentials = "user=ds password=ds2015";
+$credentials = "user=ds password=928Sbi2sl";
 
 $db  =  pg_connect( "$host $port $dbname $credentials" ); 
     if(!$db){

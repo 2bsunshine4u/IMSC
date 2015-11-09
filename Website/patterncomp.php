@@ -3,7 +3,7 @@
 	$host        = "host=osm-workspace-2.cfmyklmn07yu.us-west-2.rds.amazonaws.com";
   $port        = "port=5432";
   $dbname      = "dbname=osm";
-  $credentials = "user=ds password=ds2015";
+  $credentials = "user=ds password=928Sbi2sl";
   $roads       = array(605,215,126,210,133,110,134,118,170,22,23,47,405,2,5,60,710,73,71,91,90,101,105,10,15,14,33,57,55,241);
   sort($roads);
   $realtime_pattern = null;
@@ -36,10 +36,7 @@
       echo "Error : Unable to open database\n";
     } 
     $sql = 'SELECT * from ' .'"'.'SS_SECTION_PATTERN_ALL'.'"'.' WHERE road_name='."'".$road_name."'".' AND direction='.
-            $direction.' AND from_postmile='.$postmile.' AND day='."'".$day."'";//注意空格和单双引号
-    /*$sql =<<<EOF
-  SELECT * from "SS_SECTION_PATTERN" WHERE road_name = '2' ;
-EOF;*/
+            $direction.' AND from_postmile='.$postmile.' AND day='."'".$day."'";
     $ret = pg_query($db, $sql);
     if(!$ret){
       echo pg_last_error($db);
@@ -52,7 +49,7 @@ EOF;*/
       $historical_pattern = explode(",", $ex_row2);//pattern2
       $ex_row3 = substr($row[7], 1, strlen($row[7])-2);
       $si = explode(",", $ex_row3);//similarity
-      foreach ($realtime_pattern as $key => $value) {//数据库中读出"NULL",但是js识别需要"null"
+      foreach ($realtime_pattern as $key => $value) {
         if($value=="NULL")
           $realtime_pattern[$key] = null;
       }
@@ -141,8 +138,8 @@ EOF;*/
 <script src="Chart.min.js"></script>
 <script src="jquery-2.1.4.js"></script>
 <script type="text/javascript">
-$(function(){  //js中方法
-    var road_name = new Array();//声明三维数组
+$(function(){ 
+    var road_name = new Array();
     for(var k=0;k<1000;k++){
       road_name[k] = new Array();
         for(var m=0;m<4;m++){
@@ -150,7 +147,7 @@ $(function(){  //js中方法
           road_name[k][m] = null;
         }
     }
-  //存放在数组中的下拉菜单内容，可放在单独文件中
+  
 road_name[2][2]=[0,3,6];
 road_name[2][3]=[0,3,6];
 road_name[5][0]=[0,3,6,9,12,15,18,21,24,27,30,33,36,39,42,45,48,51,54,57,60,63,66,69,72,75,78,81,84,87,90,93,96,99,102,105];
@@ -212,13 +209,13 @@ road_name[605][1]=[0,3,6,9,12,15,18,21,24];
 road_name[710][0]=[0,3,6,9,12,15,18,21,27];
 road_name[710][1]=[0,6,9,12,15,18,21,24,27];
 
-  //每次加载
+ 
   sero =  $("select[name='road_name']").val();
   $("select[name='direction']").empty();
   for(var i in road_name[sero]){
     if(road_name[sero][i]){
       var tempdir = <?php echo $direction?>;
-      if(i==tempdir){//提交时选中的菜单项要显示出来
+      if(i==tempdir){
         if(i==0){
           i = 'North';
         }
@@ -363,16 +360,16 @@ road_name[710][1]=[0,6,9,12,15,18,21,24,27];
     }
   if(realtime_pattern || historical_pattern){
      var myNewChart = new Chart(ctx).Line(data,{
-                scaleOverride :true ,   //是否用硬编码重写y轴网格线
-                scaleSteps : 11,        //y轴刻度的个数
-                scaleStepWidth : 10,   //y轴每个刻度的宽度
-                scaleStartValue : 20,    //y轴的起始值
-                pointDot : true,        //是否显示点
-                pointDotRadius : 5,     //点的半径  
-                pointDotStrokeWidth : 1,//点的线宽
-                datasetStrokeWidth : 3, //数据线的线宽
-                animation : true,       //是否有动画效果
-                animationSteps : 60    //动画的步数
+                scaleOverride :true ,   
+                scaleSteps : 11,        
+                scaleStepWidth : 10,   
+                scaleStartValue : 20,    
+                pointDot : true,        
+                pointDotRadius : 5,     
+                pointDotStrokeWidth : 1,
+                datasetStrokeWidth : 3, 
+                animation : true,       
+                animationSteps : 60    
                 } );
   }
       }); 
