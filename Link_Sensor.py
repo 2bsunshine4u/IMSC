@@ -17,9 +17,17 @@ class Map(object):
             print "Connected."
         self.cursor = self.conn_to.cursor()
         
+        print "Connecting to historical database ......"
+        self.his_conn_to = psycopg2.connect(host='v3-graph.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='928Sbi2sl')
+        if self.his_conn_to:
+            print "Connected."
+        self.his_cursor = self.his_conn_to.cursor()
+        
     def close_db(self):
         self.conn_to.commit()
         self.conn_to.close()
+        
+        self.his_cursor.close()
         
     def pre_nodes(self):
         #save all nodes' information in a dict
@@ -46,11 +54,11 @@ class Map(object):
         if function_class_numeric == 1:
             sql = "select link_id, from_node_id, to_node_id, name_default from "+self.links_table+" where function_class_numeric=1 and ramp <> true and name_default like '%" + road_name + "%'"  
         self.cursor.execute(sql)
-        nodes = self.cursor.fetchall()
+        results = self.cursor.fetchall()
         
         false_name = []
         true_name = []
-        for (link_id, from_node_id, to_node_id, name_default) in nodes:
+        for (link_id, from_node_id, to_node_id, name_default) in results:
             #exclude road_names with ';' and onramp
             if (len (name_default) >( name_default.index(road_name) + len(road_name))):
                 if name_default[name_default.index(road_name)-1].isdigit() or name_default[name_default.index(road_name)+len(road_name)].isdigit() or name_default.find(';') >= 0 or name_default.find('Onramp')>= 0 or name_default.find('Ramp')>= 0:
@@ -69,7 +77,15 @@ class Map(object):
             from_node_loc = self.nodes[from_node_id]
             to_node_loc = self.nodes[to_node_id]
             
-            link_loc[link_id] = (from_node_loc, to_node_loc, from_node_id, to_node_id)
+            sql = "select wayid from edge_weight_metric where start_originalid = " + str(from_node_id) + "and end_originalid = " + str(to_node_id)
+            self.his_cursor.execute(sql)
+            results = self.his_cursor.fetchall()
+            if len(results) == 0:
+                way_id = "null"
+            else:
+                wayid = results[0][0]
+            
+            link_loc[link_id] = (from_node_loc, to_node_loc, from_node_id, to_node_id, wayid)
         
         print "Wrong name:", false_name
         print "Right name:", true_name
@@ -342,7 +358,7 @@ class Sensor(object):
         sensors = self.find_all_sensors(road_name, direction, t_direction)
         dict_sensors_roads = self.dict_road(link_loc, path, sensors, direction)
  
-        return dict_sensors_roads
+        return dict_sensors_roads, sensors
     
 if __name__ == '__main__':
     lamap = Map("v3_nodes", "v3_links")
@@ -427,7 +443,7 @@ if __name__ == '__main__':
     lamap.pre_nodes()
     
     print "Table has been emptied!!"
-    sql = "truncate \"SS_SENSOR_MAPPING_ALL\""
+    sql = "truncate ss_highway_mapping"
     lamap.cursor.execute(sql)
     lamap.conn_to.commit()
     
@@ -440,22 +456,31 @@ if __name__ == '__main__':
         else:
             show_dir = direction
         path = lamap.process_road(road_name, function_class_numeric, direction, t_direction, min_lon, max_lon, min_lat, max_lat, section_len, turn)
-        mapping = lasensor.map_sensor_highway(road_name, path, direction, t_direction, lamap.link_loc[road_name])
+        mapping, sensors = lasensor.map_sensor_highway(road_name, path, direction, t_direction, lamap.link_loc[road_name])
         
         for section in mapping:
             from_postmile = int(section) * 3
             to_postmile = int(section) * 3 + 3
             for link in mapping[section]:
+                start_nodeid = lamap.link_loc[road_name][link][2]
+                end_nodeid = lamap.link_loc[road_name][link][3]
+                start_loc = "POINT("+str(lamap.link_loc[road_name][link][0][0])+" "+str(lamap.link_loc[road_name][link][0][1])+")"
+                end_loc = "POINT("+str(lamap.link_loc[road_name][link][1][0])+" "+str(lamap.link_loc[road_name][link][1][1])+")"
+                length = Utils.map_dist(lamap.link_loc[road_name][link][0][0],lamap.link_loc[road_name][link][0][1],lamap.link_loc[road_name][link][1][0],lamap.link_loc[road_name][link][1][1])
+                wayid = str(lamap.link_loc[road_name][link][4])
+                
                 if road_name == '33' and section > 40:
                     continue
                 if len(mapping[section][link]) == 0:
-                    sql = "insert into \"SS_SENSOR_MAPPING_ALL\" (road_name,direction,from_postmile,to_postmile,link_id) values (%s,%d,%d,%d,%d)"%(road_name,show_dir,from_postmile,to_postmile,link)
+                    sql = "insert into ss_highway_mapping (road_name,direction,from_postmile,to_postmile,link_id,start_nodeid, start_loc,end_nodeid,end_loc,length, wayid) values (%s,%d,%d,%d,%d,%d,ST_GeomFromText('%s', 4326),%d,ST_GeomFromText('%s',4326),%f,%s)"%(road_name,show_dir,from_postmile,to_postmile,link,start_nodeid,start_loc,end_nodeid,end_loc,length, wayid)
                     lamap.cursor.execute(sql)
                     #print road_name, show_dir, section, link, "no sensor"
                 else:
                     #print road_name, show_dir, section, link, mapping[section][link]
                     for sensor in mapping[section][link]:
-                        sql = "insert into \"SS_SENSOR_MAPPING_ALL\" (road_name,direction,from_postmile,to_postmile,link_id,sensor_id) values (%s,%d,%d,%d,%d,%d)"%(road_name,show_dir,from_postmile,to_postmile,link,sensor)
+                        senloc = filter(lambda x:x[0]==sensor, sensors)[0][1]
+                        sensor_loc = "POINT("+str(senloc[0])+" "+str(senloc[1])+")"
+                        sql = "insert into ss_highway_mapping (road_name,direction,from_postmile,to_postmile,link_id,start_nodeid,start_loc,end_nodeid,end_loc,length,wayid,sensor_id,sensor_loc) values (%s,%d,%d,%d,%d,%d,ST_GeomFromText('%s',4326),%d,ST_GeomFromText('%s',4326),%f,%s,%d,ST_GeomFromText('%s',4326))"%(road_name,show_dir,from_postmile,to_postmile,link,start_nodeid,start_loc,end_nodeid,end_loc,length,wayid,sensor,sensor_loc)
                         lamap.cursor.execute(sql)
         
     lamap.close_db()
