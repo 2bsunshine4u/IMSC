@@ -4,8 +4,8 @@ $port = "port=5432";
 $dbname = "dbname=osm";
 $credentials = "user=ds password=928Sbi2sl";
 
-$links_table = "v3_links";
-$nodes_table = "v3_nodes";
+$links_table = "staging_links";
+$nodes_table = "staging_nodes";
 $sensors_table = "highway_congestion_config";
 $mapping_table = "ss_highway_mapping";
 $pattern_table = "ss_highway_pattern";
@@ -243,11 +243,11 @@ ksort($road_similarity);
                     <table style='text-align:center' border=1> \
                         <tr>    \
                             <th>Link_id</th>    \
+                            <th>Way_id</th> \
                             <th>Start_Nodeid</th> \
                             <th>Start_Location</th> \
                             <th>End_Nodeid</th> \
                             <th>End_Location</th>   \
-                            <th>Way_id</th> \
                             <th>Length</th>   \
                             <th>Sensor_id</th>  \
                             <th>Sensor_Location</th>    \
@@ -261,11 +261,11 @@ ksort($road_similarity);
                 detail_html += "    \
                     <tr>    \
                         <td rowspan="+sensor_ids.length+">"+link_id+"</td>    \
+                        <td rowspan="+sensor_ids.length+">"+data[link_id]['wayid']+"</td>    \
                         <td rowspan="+sensor_ids.length+">"+data[link_id]['from_nodeid']+"</td>  \
                         <td rowspan="+sensor_ids.length+">"+data[link_id]['from_loc']+"</td>  \
                         <td rowspan="+sensor_ids.length+">"+data[link_id]['to_nodeid']+"</td>  \
                         <td rowspan="+sensor_ids.length+">"+data[link_id]['to_loc']+"</td>    \
-                        <td rowspan="+sensor_ids.length+">"+data[link_id]['wayid']+"</td>    \
                         <td rowspan="+sensor_ids.length+">"+data[link_id]['length']+"</td>    \
                         <td>"+sensor_ids[0]+"</td>    \
                         <td>"+sensors[sensor_ids[0]]['loc']+"</td>  \
@@ -287,6 +287,7 @@ ksort($road_similarity);
             ";
             
             detail_win.document.write(detail_html);
+            //detail_win.document.write(data);
         },
         "json");
     }
@@ -369,7 +370,7 @@ elseif ($_SERVER["REQUEST_METHOD"] == "POST"):
         $mapping = array();
         $sensors = array();
 
-        $sql = "SELECT link_id,start_nodeid,ST_X(start_loc),ST_Y(start_loc),to_nodeid,ST_X(end_loc),ST_Y(end_loc),length,wayid,sensor_id,ST_X(sensor_loc),ST_Y(sensor_loc) from ".$mapping_table." WHERE road_name = '$road_name' AND direction = $direction AND from_postmile = $from_postmile";
+        $sql = "SELECT link_id,start_nodeid,ST_X(start_loc),ST_Y(start_loc),end_nodeid,ST_X(end_loc),ST_Y(end_loc),length,wayid,sensor_id,ST_X(sensor_loc),ST_Y(sensor_loc) from ".$mapping_table." WHERE road_name = '$road_name' AND direction = $direction AND from_postmile = $from_postmile";
         $ret = pg_query($db, $sql);
         if(!$ret){
             echo pg_last_error($db);
@@ -381,8 +382,8 @@ elseif ($_SERVER["REQUEST_METHOD"] == "POST"):
             $from_loc = $row[3].', '.$row[2];
             $to_nodeid = $row[4];
             $to_loc = $row[6].', '.$row[5];
-            $wayid = $row[7];
-            $length = $row[8];
+            $length = $row[7];
+            $wayid = $row[8];
             $sensor_id = $row[9];
             $sensor_loc = $row[11].', '.$row[10];
             if (!array_key_exists($link_id, $mapping)){

@@ -361,7 +361,7 @@ class Sensor(object):
         return dict_sensors_roads, sensors
     
 if __name__ == '__main__':
-    lamap = Map("v3_nodes", "v3_links")
+    lamap = Map("staging_nodes", "staging_links")
     lasensor = Sensor(lamap.cursor)
 
     min_lon = -119.4370 

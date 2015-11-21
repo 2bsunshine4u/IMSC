@@ -347,7 +347,7 @@ class Pattern(object):
                 
                 
 if __name__ == '__main__':
-    lapattern = Pattern( "\"SS_SENSOR_MAPPING_ALL\"", "ss_highway_pattern", "v3_nodes", "v3_links" )
+    lapattern = Pattern( "ss_highway_mapping", "ss_highway_pattern", "staging_nodes", "staging_links" )
     
     lapattern.generate_all()
     
