@@ -78,7 +78,8 @@ ksort($road_similarity);
 </head>
 <body>
 <h1 style = 'text-align:center'>Pattern Comparison</h1>
-<div class="main_div">
+<div class="main_div" style="width:100%;text-align:center;">
+<button onclick='all_click()'>All Pattern Chart</button>
 <table class="main" border="0">
     <tr>
         <th rowspan="2">Highway_Name</th>
@@ -206,16 +207,16 @@ ksort($road_similarity);
                     ]
                 }
                 var myNewChart = new Chart(ctx).Line(chart_data, {
-                    scaleOverride :true ,   //是否用硬编码重写y轴网格线
-                    scaleSteps : 11,        //y轴刻度的个数
-                    scaleStepWidth : 10,   //y轴每个刻度的宽度
-                    scaleStartValue : 20,    //y轴的起始值
-                    pointDot : true,        //是否显示点
-                    pointDotRadius : 5,     //点的半径  
-                    pointDotStrokeWidth : 1,//点的线宽
-                    datasetStrokeWidth : 3, //数据线的线宽
-                    animation : true,       //是否有动画效果
-                    animationSteps : 60    //动画的步数
+                    scaleOverride :true ,   
+                    scaleSteps : 11,        
+                    scaleStepWidth : 10,   
+                    scaleStartValue : 20,    
+                    pointDot : true,        
+                    pointDotRadius : 5,      
+                    pointDotStrokeWidth : 1,
+                    datasetStrokeWidth : 3, 
+                    animation : true,       
+                    animationSteps : 60    
                 } );
                 
             },
@@ -291,117 +292,191 @@ ksort($road_similarity);
         },
         "json");
     }
+    
+    function all_click(){
+        var all_win = window.open('','all_chart','height=500, width=1100');
+        all_win.document.write("<p id='remind'>Wait for processing please! About 2 minutes!</p>");
+        
+        var php_self = "<?php echo $_SERVER['PHP_SELF']?>";
+        $.post(php_self, {"all": true}, function(data){
+            all_win.document.getElementById("remind").remove();
+            all_win.document.write("<canvas id='all_chart' width='1000px' height='400px'/>");
+            all_win.document.close();
+            
+            var data_sets = [];
+            for (var i=0; i<data.length; i++){
+                data_sets.push({
+                    "fillColor" : "rgba(255,255,255,0)",
+                    "strokeColor" : "rgba(0,0,255,1)",
+                    "pointColor" : "rgba(0,180,205,1)",
+                    "pointStrokeColor" : "#fff",
+                    "data" : data[i][3]});
+            }
+            
+            
+            var ctx = all_win.document.getElementById("all_chart").getContext("2d");
+            var chart_data = {
+                labels : ["6:00","6:15","6:30","6:45","7:00","7:15","7:30","7:45","8:00","8:15","8:30","8:45","9:00","9:15","9:30","9:45",
+            "10:00","10:15","10:30","10:45","11:00","11:15","11:30","11:45","12:00","12:15","12:30","12:45","13:00","13:15","13:30","13:45",
+            "14:00","14:15","14:30","14:45","15:00","15:15","15:30","15:45","16:00","16:15","16:30","16:45","17:00","17:15","17:30","17:45",
+            "18:00","18:15","18:30","18:45","19:00","19:15","19:30","19:45","20:00","20:15","20:30","20:45"
+                ],
+                datasets : data_sets
+            }
+            var myNewChart = new Chart(ctx).Line(chart_data, {
+                scaleOverride :true ,   
+                scaleSteps : 12,        
+                scaleStepWidth : 10,   
+                scaleStartValue : 10,    
+                pointDot : true,        
+                pointDotRadius : 5,      
+                pointDotStrokeWidth : 1,
+                datasetStrokeWidth : 3, 
+                animation : true,       
+                animationSteps : 60  
+            });
+        },
+        "json");
+    }
 </script>
 <?php
 elseif ($_SERVER["REQUEST_METHOD"] == "POST"):
     ini_set("display_errors", "off");
-    $road_name = $_POST["road_name"];
-    $direction = $_POST["direction"];
 
-    if (!isset($_POST["section"])):
-        $section_similarity = array();
-
-        $sql = 'SELECT from_postmile, to_postmile, similarity from '.$pattern_table.' WHERE road_name='."'".$road_name."'".' AND direction='.$direction.' AND day='."'".$weekday."'";
+    if (isset($_POST["all"])):
+        $sql = "select road_name, direction, from_postmile, realtime_pattern from $pattern_table where day = '$weekday' and similarity[1] > 8 and similarity[2] > 8 and similarity[3] > 8 and similarity[4] > 8 and similarity[5] > 8";
         $ret = pg_query($db, $sql);
         if(!$ret){
             echo pg_last_error($db);
             exit;
         }
+        $all_pattern = array();
         while($row = pg_fetch_row($ret)){
-            $from_postmile = (int)$row[0];
-            $to_postmile = (int)$row[1];
-            $section = $from_postmile / 3;
-            $raw_similarity = substr($row[2], 1, strlen($row[2])-2);
-            $similarity = explode(",", $raw_similarity);
-            foreach ($similarity as $key => $value) {
-                if($value=="NULL"){
-                    $similarity[$key] = null;
-                }
-                else{
-                    $similarity[$key] = round($similarity[$key], 2);
+            $road_name = $row[0];
+            $direction = $row[1];
+            $from_postmile = $row[2];
+            $raw_realtime = substr($row[3], 1, strlen($row[3])-2);
+            $realtime_pattern = explode(',', $raw_realtime);
+            foreach($realtime_pattern as $key=>$value){
+                if($value == "NULL"){
+                    $realtime_pattern[$key] = null;
                 }
             }
+            
+            array_push($all_pattern, array($road_name, $direction, $from_postmile, $realtime_pattern));
+        }
 
-            if ($section != count($section_similarity)){
-                for ($i = count($section_similarity); $i<$section; $i++){
-                    $section_similarity[$i] = null;
+        echo json_encode($all_pattern);
+
+    else:
+        $road_name = $_POST["road_name"];
+        $direction = $_POST["direction"];
+
+        if (!isset($_POST["section"])):
+            $section_similarity = array();
+
+            $sql = 'SELECT from_postmile, to_postmile, similarity from '.$pattern_table.' WHERE road_name='."'".$road_name."'".' AND direction='.$direction.' AND day='."'".$weekday."'";
+            $ret = pg_query($db, $sql);
+            if(!$ret){
+                echo pg_last_error($db);
+                exit;
+            }
+            while($row = pg_fetch_row($ret)){
+                $from_postmile = (int)$row[0];
+                $to_postmile = (int)$row[1];
+                $section = $from_postmile / 3;
+                $raw_similarity = substr($row[2], 1, strlen($row[2])-2);
+                $similarity = explode(",", $raw_similarity);
+                foreach ($similarity as $key => $value) {
+                    if($value=="NULL"){
+                        $similarity[$key] = null;
+                    }
+                    else{
+                        $similarity[$key] = round($similarity[$key], 2);
+                    }
                 }
+
+                if ($section != count($section_similarity)){
+                    for ($i = count($section_similarity); $i<$section; $i++){
+                        $section_similarity[$i] = null;
+                    }
+                }
+                $section_similarity[$section] = $similarity;
             }
-            $section_similarity[$section] = $similarity;
-        }
 
-        echo json_encode($section_similarity);
-    elseif (!isset($_POST["detail"])):
-        $section = $_POST["section"];
-        $from_postmile = (int)$section * 3;
+            echo json_encode($section_similarity);
+        elseif (!isset($_POST["detail"])):
+            $section = $_POST["section"];
+            $from_postmile = (int)$section * 3;
 
-        $patterns = array();
-        
-        $sql = "SELECT realtime_pattern, historical_pattern from ".$pattern_table." WHERE road_name = '$road_name' AND direction = $direction AND from_postmile = $from_postmile AND day = '$weekday'";
-        $ret = pg_query($db, $sql);
-        if(!$ret){
-            echo pg_last_error($db);
-            exit;
-        }
-        $row = pg_fetch_row($ret);
-        $raw_realtime_pattern = substr($row[0], 1, strlen($row[0])-2);
-        $realtime_pattern = explode(",", $raw_realtime_pattern);
-        $raw_historical_pattern = substr($row[1], 1, strlen($row[1])-2);
-        $historical_pattern = explode(",", $raw_historical_pattern);
+            $patterns = array();
 
-        foreach ($realtime_pattern as $key => $value) {
-            if($value=="NULL")
-                $realtime_pattern[$key] = null;
-        }
-        foreach ($historical_pattern as $key => $value) {
-            if($value=="NULL")
-                $historical_pattern[$key] = null;
-        }
-        
-        $patterns['realtime_pattern'] = $realtime_pattern;
-        $patterns['historical_pattern'] = $historical_pattern;
-
-        echo json_encode($patterns);
-
-    elseif (isset($_POST["detail"])):
-        $section = $_POST["section"];
-        $from_postmile = (int)$section * 3;
-        
-        $mapping = array();
-        $sensors = array();
-
-        $sql = "SELECT link_id,start_nodeid,ST_X(start_loc),ST_Y(start_loc),end_nodeid,ST_X(end_loc),ST_Y(end_loc),length,wayid,sensor_id,ST_X(sensor_loc),ST_Y(sensor_loc) from ".$mapping_table." WHERE road_name = '$road_name' AND direction = $direction AND from_postmile = $from_postmile";
-        $ret = pg_query($db, $sql);
-        if(!$ret){
-            echo pg_last_error($db);
-            exit;
-        }
-        while($row = pg_fetch_row($ret)){
-            $link_id = $row[0];
-            $from_nodeid = $row[1];
-            $from_loc = $row[3].', '.$row[2];
-            $to_nodeid = $row[4];
-            $to_loc = $row[6].', '.$row[5];
-            $length = $row[7];
-            $wayid = $row[8];
-            $sensor_id = $row[9];
-            $sensor_loc = $row[11].', '.$row[10];
-            if (!array_key_exists($link_id, $mapping)){
-                $mapping[$link_id] = array();
-                $mapping[$link_id]['from_nodeid'] = $from_nodeid;
-                $mapping[$link_id]['from_loc'] = $from_loc;
-                $mapping[$link_id]['to_nodeid'] = $to_nodeid;
-                $mapping[$link_id]['to_loc'] = $to_loc;
-                $mapping[$link_id]['length'] = $length;
-                $mapping[$link_id]['wayid'] = $wayid;
-                $mapping[$link_id]['sensors'] = array();
+            $sql = "SELECT realtime_pattern, historical_pattern from ".$pattern_table." WHERE road_name = '$road_name' AND direction = $direction AND from_postmile = $from_postmile AND day = '$weekday'";
+            $ret = pg_query($db, $sql);
+            if(!$ret){
+                echo pg_last_error($db);
+                exit;
             }
-            $mapping[$link_id]['sensors'][$sensor_id] = array();
-            $mapping[$link_id]['sensors'][$sensor_id]['loc'] = $sensor_loc;
-        }
-        
-        echo json_encode($mapping);
-        
+            $row = pg_fetch_row($ret);
+            $raw_realtime_pattern = substr($row[0], 1, strlen($row[0])-2);
+            $realtime_pattern = explode(",", $raw_realtime_pattern);
+            $raw_historical_pattern = substr($row[1], 1, strlen($row[1])-2);
+            $historical_pattern = explode(",", $raw_historical_pattern);
+
+            foreach ($realtime_pattern as $key => $value) {
+                if($value=="NULL")
+                    $realtime_pattern[$key] = null;
+            }
+            foreach ($historical_pattern as $key => $value) {
+                if($value=="NULL")
+                    $historical_pattern[$key] = null;
+            }
+
+            $patterns['realtime_pattern'] = $realtime_pattern;
+            $patterns['historical_pattern'] = $historical_pattern;
+
+            echo json_encode($patterns);
+
+        elseif (isset($_POST["detail"])):
+            $section = $_POST["section"];
+            $from_postmile = (int)$section * 3;
+
+            $mapping = array();
+            $sensors = array();
+
+            $sql = "SELECT link_id,start_nodeid,ST_X(start_loc),ST_Y(start_loc),end_nodeid,ST_X(end_loc),ST_Y(end_loc),length,wayid,sensor_id,ST_X(sensor_loc),ST_Y(sensor_loc) from ".$mapping_table." WHERE road_name = '$road_name' AND direction = $direction AND from_postmile = $from_postmile";
+            $ret = pg_query($db, $sql);
+            if(!$ret){
+                echo pg_last_error($db);
+                exit;
+            }
+            while($row = pg_fetch_row($ret)){
+                $link_id = $row[0];
+                $from_nodeid = $row[1];
+                $from_loc = $row[3].', '.$row[2];
+                $to_nodeid = $row[4];
+                $to_loc = $row[6].', '.$row[5];
+                $length = $row[7];
+                $wayid = $row[8];
+                $sensor_id = $row[9];
+                $sensor_loc = $row[11].', '.$row[10];
+                if (!array_key_exists($link_id, $mapping)){
+                    $mapping[$link_id] = array();
+                    $mapping[$link_id]['from_nodeid'] = $from_nodeid;
+                    $mapping[$link_id]['from_loc'] = $from_loc;
+                    $mapping[$link_id]['to_nodeid'] = $to_nodeid;
+                    $mapping[$link_id]['to_loc'] = $to_loc;
+                    $mapping[$link_id]['length'] = $length;
+                    $mapping[$link_id]['wayid'] = $wayid;
+                    $mapping[$link_id]['sensors'] = array();
+                }
+                $mapping[$link_id]['sensors'][$sensor_id] = array();
+                $mapping[$link_id]['sensors'][$sensor_id]['loc'] = $sensor_loc;
+            }
+
+            echo json_encode($mapping);
+
+        endif;
     endif;
 endif;
 ?>

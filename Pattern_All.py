@@ -3,11 +3,12 @@ import datetime
 import Utils
 
 class Pattern(object):
-    def __init__(self, mapping_table, pattern_table, nodes_table, links_table):
+    def __init__(self, mapping_table, pattern_table, nodes_table, links_table, historical_table):
         self.mapping_table = mapping_table
         self.pattern_table = pattern_table
         self.nodes_table = nodes_table
         self.links_table = links_table
+        self.historical_table = historical_table
         
         self.init_db()
         self.nodes = {}
@@ -216,7 +217,7 @@ class Pattern(object):
             his_day_link_weight[d] = {}
             for link in mapping[road_name][direction][section]:
                 start_node, end_node = self.links[road_name][link][:2]
-                sql = "select weights_" + day + " from edge_weight_metric WHERE start_originalid = " + str(start_node) + " AND end_originalid = "+str(end_node)
+                sql = "select weights_" + day + " from "+self.historical_table+" WHERE start_originalid = " + str(start_node) + " AND end_originalid = "+str(end_node)
                 self.his_cursor.execute(sql)
                 results = self.his_cursor.fetchall()
                 if len(results) > 0:
@@ -347,7 +348,7 @@ class Pattern(object):
                 
                 
 if __name__ == '__main__':
-    lapattern = Pattern( "ss_highway_mapping", "ss_highway_pattern", "staging_nodes", "staging_links" )
+    lapattern = Pattern( "ss_highway_mapping", "ss_highway_pattern", "staging_nodes", "staging_links", "staging_edge_weight_metric")
     
     lapattern.generate_all()
     
