@@ -305,7 +305,7 @@ class Sensor(object):
                     lon_sen, lat_sen = sensor[1]                
                     if (Utils.is_in_bbox(lon1,lat1,lon2,lat2,lon_sen,lat_sen) and Utils.point2line(lon_sen,lat_sen,lon1,lat1,lon2,lat2) < 200):
                         #print "find sensor",lat_sen,lon_sen,"on link:",link_loc[link][:2]
-                        dict_road[section][link].append(sensor[0])
+                        dict_road[section][link].append((sensor[0], "TRUE"))
                         if sensor not in used_s:
                             used_s.append(sensor)
                         continue
@@ -332,13 +332,13 @@ class Sensor(object):
                                 dist2 = d
 
                 if len(dict_road[section][link]) == 0:
-                    if dist1 < 1000:
-                        dict_road[section][link].append(sen1[0])
+                    if dist1 < 450:
+                        dict_road[section][link].append((sen1[0], "FALSE"))
                         if sen1 not in used_s:
                             used_s.append(sen1)
 
-                    if dist2 < 1000:
-                        dict_road[section][link].append(sen2[0])
+                    if dist2 < 450:
+                        dict_road[section][link].append((sen2[0], "FALSE"))
                         if sen2 not in used_s:
                             used_s.append(sen2)  
             
@@ -477,10 +477,10 @@ if __name__ == '__main__':
                     #print road_name, show_dir, section, link, "no sensor"
                 else:
                     #print road_name, show_dir, section, link, mapping[section][link]
-                    for sensor in mapping[section][link]:
+                    for sensor, on_edge_flag in mapping[section][link]:
                         senloc = filter(lambda x:x[0]==sensor, sensors)[0][1]
                         sensor_loc = "POINT("+str(senloc[0])+" "+str(senloc[1])+")"
-                        sql = "insert into ss_highway_mapping (road_name,direction,from_postmile,to_postmile,link_id,start_nodeid,start_loc,end_nodeid,end_loc,length,wayid,sensor_id,sensor_loc) values (%s,%d,%d,%d,%d,%d,ST_GeomFromText('%s',4326),%d,ST_GeomFromText('%s',4326),%f,%s,%d,ST_GeomFromText('%s',4326))"%(road_name,show_dir,from_postmile,to_postmile,link,start_nodeid,start_loc,end_nodeid,end_loc,length,wayid,sensor,sensor_loc)
+                        sql = "insert into ss_highway_mapping (road_name,direction,from_postmile,to_postmile,link_id,start_nodeid,start_loc,end_nodeid,end_loc,length,wayid,sensor_id,sensor_loc,on_edge_flag) values (%s,%d,%d,%d,%d,%d,ST_GeomFromText('%s',4326),%d,ST_GeomFromText('%s',4326),%f,%s,%d,ST_GeomFromText('%s',4326),%s)"%(road_name,show_dir,from_postmile,to_postmile,link,start_nodeid,start_loc,end_nodeid,end_loc,length,wayid,sensor,sensor_loc,on_edge_flag)
                         lamap.cursor.execute(sql)
         
     lamap.close_db()

@@ -2,20 +2,21 @@ import psycopg2
 import Utils
 
 if __name__ == '__main__':
-    fileout = open("pattern.txt", 'w')
+    links_table = "staging_links"
+    nodes_table = "staging_nodes"
     
     print "Connecting to database ......"
-    conn_to = psycopg2.connect(host='osm-workspace-2.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='osm', user='ds', password='ds2015')
+    conn_to = psycopg2.connect(host='osm-workspace-2.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='osm', user='ds', password='928Sbi2sl')
     if conn_to:
         print "Connected."
     cursor = conn_to.cursor() 
     
     print "fetching mapping information from database"
-    sql = "select road_name, direction, from_postmile, link_id, sensor_id from \"SS_SENSOR_MAPPING_ALL\""
+    sql = "select road_name, direction, from_postmile, link_id, start_nodeid, end_nodeid, sensor_id, on_edge_flag from ss_highway_mapping"
     cursor.execute(sql)
     results = cursor.fetchall()
     mapping = {}
-    for road_name, direction, from_postmile, link_id, sensor_id in results:
+    for road_name, direction, from_postmile, link_id, start_nodeid, end_nodeid, sensor_id, on_edge_flag in results:
         if int(road_name) == 10 and direction == 3:
             section = from_postmile/3
             if road_name not in mapping:
@@ -25,26 +26,31 @@ if __name__ == '__main__':
             if section not in mapping[road_name][direction]:
                 mapping[road_name][direction][section] = {}
             if link_id not in mapping[road_name][direction][section]:
-                mapping[road_name][direction][section][link_id] =[]
+                mapping[road_name][direction][section][link_id] ={}
+                mapping[road_name][direction][section][link_id]['nodeid'] = (start_nodeid,end_nodeid)
+                mapping[road_name][direction][section][link_id]['sensors'] = []
             if sensor_id:
-                if sensor_id not in mapping[road_name][direction][section][link_id]:
-                    mapping[road_name][direction][section][link_id].append(sensor_id)
+                if sensor_id not in mapping[road_name][direction][section][link_id]['sensors']:
+                    mapping[road_name][direction][section][link_id]['sensors'].append(sensor_id)
                     
-    '''
+
     print "Connecting to database ......"
-    his_conn_to = psycopg2.connect(host='graph-3.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='ds2015')
+    his_conn_to = psycopg2.connect(host='v3-graph.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='tallygo', user='ds', password='928Sbi2sl')
     if his_conn_to:
         print "Connected."
     his_cursor = his_conn_to.cursor()
+
     
-    
+    #fetching Historical
+    print "fetching historical mapping"
     his_mapping = {}
     link_name = {}
     for road_name in mapping:
         for direction in mapping[road_name]:
             for section in mapping[road_name][direction]:
+                print road_name, direction, section
                 for link_id in mapping[road_name][direction][section]:
-                    sql = "select name_default, from_node_id, to_node_id from links where link_id = " + str(link_id)
+                    sql = "select name_default, from_node_id, to_node_id from "+ links_table+" where link_id = " + str(link_id)
                     cursor.execute(sql)
                     results = cursor.fetchall()
                     name_default, from_node_id, to_node_id = results[0]
@@ -58,6 +64,8 @@ if __name__ == '__main__':
                         if link_id not in his_mapping:
                             his_mapping[link_id] = []
                         his_mapping[link_id].append(sensor_id)
+    
+    #fetching Yifan
     '''
     yf_mapping = {}
     link_name = {}
@@ -77,14 +85,15 @@ if __name__ == '__main__':
                             yf_mapping[link_id].append(sensor2)
                         if sensor3:
                             yf_mapping[link_id].append(sensor3)
-    
     '''
-    print "Comparing"
+    
+    print "Comparing with historical"
     for road_name in mapping:
         for direction in mapping[road_name]:
             for section in mapping[road_name][direction]:
                 for link_id in mapping[road_name][direction][section]:
-                    if (link_id not in his_mapping and len(mapping[road_name][direction][section][link_id]) == 1) or  (link_id in his_mapping and set(his_mapping[link_id]).issubset(set(mapping[road_name][direction][section][link_id])) == False):
+                    if (link_id not in his_mapping and mapping[road_name][direction][section][link_id]['sensors'] != []) or (link_id in his_mapping and set(his_mapping[link_id]) != set(mapping[road_name][direction][section][link_id]['sensors'])):
+                        '''
                         flag = False
                         for sensor_id in mapping[road_name][direction][section][link_id]: 
                             sql = "select * from highway_sensor_config where sensor_id =" + str(sensor_id)
@@ -94,6 +103,7 @@ if __name__ == '__main__':
                                 flag = True
                         if flag:
                             continue
+                        '''
                         
                         
                         print '\n\n'
@@ -102,22 +112,20 @@ if __name__ == '__main__':
                         print "Section:", section
                         print "Link id:", link_id
                         
-                        sql = "select from_node_id, to_node_id from links where link_id = " + str(link_id)
-                        cursor.execute(sql)
-                        results = cursor.fetchall()
-                        from_node_id, to_node_id = results[0]
                         
-                        sql = "select ST_AsText(geom) from nodes where node_id = "+ str(from_node_id)
+                        from_node_id, to_node_id = mapping[road_name][direction][section][link_id]['nodeid']
+                        
+                        sql = "select ST_AsText(geom) from "+nodes_table+" where node_id = "+ str(from_node_id)
                         cursor.execute(sql)
                         from_node_loc = Utils.extract_loc_from_geometry(cursor.fetchall()[0][0])
                         
-                        sql = "select ST_AsText(geom) from nodes where node_id = "+ str(to_node_id)
+                        sql = "select ST_AsText(geom) from "+nodes_table+" where node_id = "+ str(to_node_id)
                         cursor.execute(sql)
                         to_node_loc = Utils.extract_loc_from_geometry(cursor.fetchall()[0][0])
                         
                         print "from_node:",from_node_loc[::-1],"to_node:", to_node_loc[::-1]
                         
-                        print "\nMy mapped Sensors:", mapping[road_name][direction][section][link_id]
+                        print "\nMy mapped Sensors:", mapping[road_name][direction][section][link_id]['sensors']
                         if link_id not in his_mapping:
                             print "Historical mapped Sensors:", []
                         else:
@@ -125,7 +133,7 @@ if __name__ == '__main__':
                         
                         
                         print "My sensor Information:"
-                        for sensor_id in mapping[road_name][direction][section][link_id]: 
+                        for sensor_id in mapping[road_name][direction][section][link_id]['sensors']: 
                             sql = "select direction, onstreet, ST_AsText(start_lat_long) from highway_congestion_config where sensor_id = " + str(sensor_id)
                             cursor.execute(sql)
                             result = cursor.fetchall()[0]
@@ -149,17 +157,17 @@ if __name__ == '__main__':
                             print "sensor_id:",sensor_id,"direction:",sensor_dir,"onstreet:",onstreet,"loc:",sensor_loc[::-1]
                             if road_name not in onstreet:
                                 print "WRONG ROAD!!!!"
-                            if sensor_dir != direction:
+                            if int(sensor_dir) != int(direction):
                                 print "WRONG DIRECTION!!!"
                             
                     else:
                         print "\nSame mapping on:",road_name,direction,section,link_id
-                        print "My mapped Sensors:", mapping[road_name][direction][section][link_id]
+                        print "My mapped Sensors:", mapping[road_name][direction][section][link_id]['sensors']
                         #print "Historical mapped Sensors:", his_mapping[link_id]
                         continue
                         
     '''           
-    print "Comparing"
+    print "Comparing with Yifan"
     for road_name in mapping:
         for direction in mapping[road_name]:
             for section in mapping[road_name][direction]:
@@ -227,3 +235,4 @@ if __name__ == '__main__':
                         #print "My mapped Sensors:", mapping[road_name][direction][section][link_id]
                         #print "Historical mapped Sensors:", his_mapping[link_id]
                         continue
+    '''
