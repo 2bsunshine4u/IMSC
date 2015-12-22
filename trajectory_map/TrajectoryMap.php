@@ -1,6 +1,6 @@
 <?php
     /*osmgpxfilter query:
-    /usr/java/jdk1.7.0_79/bin -showversion -d64 -Xms1024m -Xmx4096m -XX:MaxPermSize=128m -XX:-UseGCOverheadLimit -jar target/osmgpxfilter-0.1.jar -i ../gpx-planet-2013-04-09.tar.xz -ds dump -bbox top=34.5830 left=-119.4370 bottom=33.2980 right=-116.7240 -c -e -wpg db=traj user=traj password=traj host=localhost port=5432 geometry=point
+    /usr/java/jdk1.7.0_79/bin/java -showversion -d64 -Xms1024m -Xmx6g -XX:MaxPermSize=128m -XX:-UseGCOverheadLimit -jar target/osmgpxfilter-0.1.jar -i ../gpx-planet-2013-04-09.tar.xz -ds dump -bbox top=34.5830 left=-119.4370 bottom=33.2980 right=-116.7240 -c -wpg db=traj user=traj password=traj host=localhost port=5432 geometry=point
     */
     $host = "host=localhost";
     $port = "port=5432";
@@ -30,11 +30,14 @@
 <head>
 <script  src="https://code.jquery.com/jquery.min.js"></script>
 <script src="http://maps.googleapis.com/maps/api/js?key=AIzaSyBX-020tzotCYjKZb4_p9r-ASMBjZtcgbE"></script>
+<title>Trajectory Map</title>
 </head>
 
 <body>
     <div style="width:1000px;text-align:center;">
         <h1>Trajectory Map</h1>
+        <p style="text-align:left">Please select the gpx_id and click on "Show Trajectory" button.</p>
+        <p style="text-align:left">After the trajectory is shown, you may click on pins to see detailed information. And you can use the zoom in&out button at the right-bottom corner</p>
         <div id="googleMap" style="height:640px;"></div>
         <div style="margin-top:40px; margin-left:auto; margin-right:auto;">
             <label for="gpx_id">GPX_ID: </label>
@@ -46,7 +49,7 @@
 <script>
 var map;
 var marker_array = [];
-    
+
 function initialize(){
     var mapProp = {
         center:new google.maps.LatLng(34.0500, -118.2500),
@@ -82,6 +85,8 @@ $("#show_traj").click(function(){
             show_result(data);
             $("#show_traj").html("Show Trajectory");
             document.getElementById("show_traj").disabled = false;
+            map.setCenter(new google.maps.LatLng(34.0500, -118.2500));
+            map.setZoom(9);
         },
         error: function(xhr){
             alert("An error occured: " + xhr.status + " " + xhr.statusText);
