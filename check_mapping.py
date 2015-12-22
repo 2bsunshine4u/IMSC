@@ -12,11 +12,11 @@ if __name__ == '__main__':
     cursor = conn_to.cursor() 
     
     print "fetching mapping information from database"
-    sql = "select road_name, direction, from_postmile, link_id, start_nodeid, end_nodeid, sensor_id, on_edge_flag from ss_highway_mapping"
+    sql = "select road_name, direction, from_postmile, link_id, wayid,  start_nodeid, end_nodeid, sensor_id, on_edge_flag from ss_highway_mapping"
     cursor.execute(sql)
     results = cursor.fetchall()
     mapping = {}
-    for road_name, direction, from_postmile, link_id, start_nodeid, end_nodeid, sensor_id, on_edge_flag in results:
+    for road_name, direction, from_postmile, link_id, wayid, start_nodeid, end_nodeid, sensor_id, on_edge_flag in results:
         if int(road_name) == 10 and direction == 3:
             section = from_postmile/3
             if road_name not in mapping:
@@ -29,6 +29,8 @@ if __name__ == '__main__':
                 mapping[road_name][direction][section][link_id] ={}
                 mapping[road_name][direction][section][link_id]['nodeid'] = (start_nodeid,end_nodeid)
                 mapping[road_name][direction][section][link_id]['sensors'] = []
+                mapping[road_name][direction][section][link_id]['wayid'] = wayid
+                mapping[road_name][direction][section][link_id]['on_edge_flag'] = on_edge_flag
             if sensor_id:
                 if sensor_id not in mapping[road_name][direction][section][link_id]['sensors']:
                     mapping[road_name][direction][section][link_id]['sensors'].append(sensor_id)
@@ -56,7 +58,7 @@ if __name__ == '__main__':
                     name_default, from_node_id, to_node_id = results[0]
                     link_name[link_id] = name_default
                         
-                    sql = "select sensor_id from on_edge_sensor_mapping where from_node_id ="+str(from_node_id)+"and to_node_id = "+str(to_node_id)
+                    sql = "select sensor_id from stg_line_on_edge_sensor_mapping where from_node_id ="+str(from_node_id)+"and to_node_id = "+str(to_node_id)
                     his_cursor.execute(sql)
                     results = his_cursor.fetchall()
                     for sensorl in results:
@@ -111,6 +113,7 @@ if __name__ == '__main__':
                         print "Direction", direction
                         print "Section:", section
                         print "Link id:", link_id
+                        print "Way id:", mapping[road_name][direction][section][link_id]['wayid']
                         
                         
                         from_node_id, to_node_id = mapping[road_name][direction][section][link_id]['nodeid']
@@ -126,13 +129,14 @@ if __name__ == '__main__':
                         print "from_node:",from_node_loc[::-1],"to_node:", to_node_loc[::-1]
                         
                         print "\nMy mapped Sensors:", mapping[road_name][direction][section][link_id]['sensors']
+                        print "My on_edge_flag:", mapping[road_name][direction][section][link_id]['on_edge_flag']
                         if link_id not in his_mapping:
                             print "Historical mapped Sensors:", []
                         else:
                             print "Historical mapped Sensors:", his_mapping[link_id]
                         
                         
-                        print "My sensor Information:"
+                        print "\nMy sensor Information:"
                         for sensor_id in mapping[road_name][direction][section][link_id]['sensors']: 
                             sql = "select direction, onstreet, ST_AsText(start_lat_long) from highway_congestion_config where sensor_id = " + str(sensor_id)
                             cursor.execute(sql)
