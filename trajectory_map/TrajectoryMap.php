@@ -109,8 +109,8 @@ function show_result(paths){
                 var path_latlng = paths[gpx_id][trk_id][trk_seg];
                 var path = [];
 
-                for (var i in path_latlng){
-                    var position = new google.maps.LatLng(path_latlng[i][3], path_latlng[i][2]);
+                for (var trkpt_id in path_latlng){
+                    var position = new google.maps.LatLng(path_latlng[trkpt_id][2], path_latlng[trkpt_id][1]);
                     path.push(position);
 
                     var marker=new google.maps.Marker({
@@ -125,8 +125,8 @@ function show_result(paths){
                     content += "<p>gpx_id: " + gpx_id + "</p>";
                     content += "<p>trk_id: " + trk_id + "</p>";
                     content += "<p>trkseg_id: " + trk_seg + "</p>";
-                    content += "<p>trkpt_id: " + path_latlng[i][0] + "</p>";
-                    content += "<p>time: " + path_latlng[i][1] + "</p>";
+                    content += "<p>trkpt_id: " + trkpt_id + "</p>";
+                    content += "<p>time: " + path_latlng[trkpt_id][0] + "</p>";
                     attachMessage(marker, content);
                 }
 

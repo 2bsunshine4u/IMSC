@@ -47,9 +47,17 @@ while($row = pg_fetch_row($ret)){
     $time = $row[4];
     $lng = (float)$row[5];
     $lat = (float)$row[6];
-    array_push($paths[$gpx_id][$trk_id][$trkseg_id], array($trkpt_id, $time, $lng, $lat));
+    $paths[$gpx_id][$trk_id][$trkseg_id][$trkpt_id] = array($time, $lng, $lat);
 }
 pg_close($db);
+
+foreach ($paths as $gpx_id => $value) {
+    foreach ($paths[$gpx_id] as $trk_id => $value) {
+        foreach ($paths[$gpx_id][$trk_id] as $trkseg_id => $value) {
+            ksort($paths[$gpx_id][$trk_id][$trkseg_id]);
+        }
+    }
+}
     
 echo json_encode($paths);
 ?>
