@@ -416,6 +416,8 @@ if __name__ == '__main__':
     print "Table has been emptied!!"
     sql = "truncate table segment_mapping_highway"
     lamap.cursor.execute(sql)
+    sql = "truncate table pattern_highway"
+    lamap.cursor.execute(sql)
     lamap.conn.commit()
     
     for hwy in hwy_set:
@@ -433,6 +435,13 @@ if __name__ == '__main__':
         for section in mapping:
             from_postmile = int(section) * 3
             to_postmile = int(section) * 3 + 3
+            sql = "insert into pattern_highway (road_name,direction,from_postmile,to_postmile,weekday) values (:1,:2,:3,:4,:5)"
+            days = ["'Monday'", "'Tuesday'", "'Wednesday'", "'Thursday'", "'Friday'", "'Saturday'", "'Sunday'"]
+            data = []
+            for d in days:
+                data = (road_name,show_dir,from_postmile,to_postmile,d)
+                lamap.insert_oracle(sql, data)
+
             for link in mapping[section]:
                 start_nodeid = lamap.link_loc[road_name][link][2]
                 end_nodeid = lamap.link_loc[road_name][link][3]
@@ -458,6 +467,7 @@ if __name__ == '__main__':
                         data = (road_name,show_dir,from_postmile,to_postmile,link,start_nodeid,start_loc[0],start_loc[1],end_nodeid,end_loc[0],end_loc[1],length,wayid,segment,seg_start[0],seg_start[1],seg_end[0],seg_end[1],seg_len,seg_onstreet,on_edge_flag)
                         lamap.insert_oracle(sql,data)
         lamap.conn.commit()
+    
         
     lamap.close_db()
     
