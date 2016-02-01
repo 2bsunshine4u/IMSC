@@ -28,7 +28,6 @@ $sql = 'SELECT road_name, direction, from_postmile, similarity from '.$pattern_t
 $stid = oci_parse($db, $sql);
 $ret = oci_execute($stid, OCI_DEFAULT);
 if(!$ret){
-    echo htmlentities(oci_error($stid)['message']);
     exit;
 }
 
@@ -80,9 +79,9 @@ ksort($road_similarity);
 <script src="jquery-2.1.4.js"></script>
 </head>
 <body>
-<h1 style = 'text-align:center'>Pattern Comparison</h1>
+<h1 style = 'text-align:center'>Inrix and Sensor Pattern Comparison</h1>
 <div class="main_div" style="width:100%;text-align:center;">
-<button onclick='all_click()'>All Pattern Chart</button>
+<!--<button onclick='all_click()'>All Pattern Chart</button>-->
 <table class="main" border="0">
     <tr>
         <th rowspan="2">Highway_Name</th>
@@ -183,7 +182,7 @@ ksort($road_similarity);
             var php_self = "<?php echo $_SERVER['PHP_SELF']; ?>";
             $.post(php_self, {"road_name": road_name, "direction":direction, "section":section}, function(data){
                 //document.write(data)
-                var chart_html = "<tr class='color_row'><td colspan='10'><table align='center'><tr><th>Inirx_pattern: </th><th><hr width=50 noshade color='#0000FF' /></th><th>&nbsp;Realtime_pattern:</th><th><hr width=50 noshade color='#00FF00'></th></tr></table><button onclick=\"click_detail('"+road_name+"','"+direction+"','"+section+"');\">Details</button></td></tr><tr class='chart_row'><td colspan='10'><canvas id='section_chart' width='800%' height='400' /></td></tr>";
+                var chart_html = "<tr class='color_row'><td colspan='10'><table align='center'><tr><th>Inirx_pattern: </th><th><hr width=50 noshade color='#0000FF' /></th><th>&nbsp;Realtime_pattern:</th><th><hr width=50 noshade color='#00FF00'></th></tr></table><button onclick=\"click_segment_detail('"+road_name+"','"+direction+"','"+section+"');\">Details</button></td></tr><tr class='chart_row'><td colspan='10'><canvas id='section_chart' width='800%' height='400' /></td></tr>";
                 $("#S"+road_name+"_"+direction+"_"+section).after(chart_html);
 
                 var ctx = document.getElementById("section_chart").getContext("2d");
@@ -227,13 +226,101 @@ ksort($road_similarity);
             "json");
         }
     }
-    
-    function click_detail(road_name, direction, section){
+
+    function click_segment_detail(road_name, direction, section){
         var detail_win = window.open('','detail_table','height=300, width=500');
         detail_win.document.write("<p id='remind'>Wait for processing please!</p>");
   
         var php_self = "<?php echo $_SERVER['PHP_SELF']; ?>";
-        $.post(php_self, {"road_name": road_name, "direction":direction, "section":section, "detail":true}, function(data){
+        $.post(php_self, {"road_name": road_name, "direction":direction, "section":section, "segment_detail":true}, function(data){
+            detail_win.document.getElementById("remind").remove();
+            //detail_win.document.write(data);
+            var detail_html = " \
+                <head>  \
+                    <title>Section Detail</title> \
+                    <style type='text/css'> \
+                        th, td{ \
+                            padding: 6px;   \
+                        }   \
+                    </style>    \
+                </head>   \
+                <body>  \
+                    <table style='text-align:center' border=1> \
+                        <tr>    \
+                            <th>Link_id</th>    \
+                            <th>Way_id</th> \
+                            <th>Start_Nodeid</th> \
+                            <th>Start_Location</th> \
+                            <th>End_Nodeid</th> \
+                            <th>End_Location</th>   \
+                            <th>Length</th>   \
+                            <th>Segment_id</th>  \
+                            <th>Segment_Start</th>    \
+                            <th>Segment_End</th>    \
+                            <th>Segment_Onstreet</th>    \
+                            <th>On_Edge_Flag</th>    \
+                        </tr>";
+            for (link_id in data){
+                var segments = data[link_id]['segments'];
+                var segment_ids = [];
+                for (segment_id in segments){
+                        segment_ids.push(segment_id);
+                }
+                for (idx in segment_ids){
+                    if (segment_ids.length == 1 || segment_ids[idx].length == 0){
+                        segment_ids.splice(idx, 1);
+                    }
+                }
+                detail_html += "    \
+                    <tr>    \
+                        <td rowspan="+segment_ids.length+">"+link_id+"</td>    \
+                        <td rowspan="+segment_ids.length+">"+data[link_id]['wayid']+"</td>    \
+                        <td rowspan="+segment_ids.length+">"+data[link_id]['from_nodeid']+"</td>  \
+                        <td rowspan="+segment_ids.length+">"+data[link_id]['from_loc']+"</td>  \
+                        <td rowspan="+segment_ids.length+">"+data[link_id]['to_nodeid']+"</td>  \
+                        <td rowspan="+segment_ids.length+">"+data[link_id]['to_loc']+"</td>    \
+                        <td rowspan="+segment_ids.length+">"+data[link_id]['length']+"</td>    ";
+                if (segment_ids.length > 0){
+                    detail_html += "    \
+                        <td>"+segment_ids[0]+"</td> \
+                        <td>"+segments[segment_ids[0]]['segment_start']+"</td>  \
+                        <td>"+segments[segment_ids[0]]['segment_end']+"</td>  \
+                        <td>"+segments[segment_ids[0]]['segment_onstreet']+"</td>  \
+                        <td>"+segments[segment_ids[0]]['on_edge_flag']+"</td> ";
+                }
+                
+                detail_html += "</tr>";
+
+                segment_ids.shift();
+                for (idx in segment_ids){
+                    segment_id = segment_ids[idx];
+                    detail_html += "    \
+                        <tr>    \
+                            <td>"+segment_id+"</td>    \
+                            <td>"+segments[segment_id]['segment_start']+"</td>  \
+                            <td>"+segments[segment_id]['segment_end']+"</td>  \
+                            <td>"+segments[segment_id]['segment_onstreet']+"</td>  \
+                            <td>"+segments[segment_id]['on_edge_flag']+"</td>  \
+                        </tr>   \
+                    ";
+                }
+            }
+    detail_html+= "</table>    \
+                </body> \
+            ";
+            
+            detail_win.document.write(detail_html);
+            //detail_win.document.write(data);
+        },
+        "json");
+    }
+    
+    function click_sensor_detail(road_name, direction, section){
+        var detail_win = window.open('','detail_table','height=300, width=500');
+        detail_win.document.write("<p id='remind'>Wait for processing please!</p>");
+  
+        var php_self = "<?php echo $_SERVER['PHP_SELF']; ?>";
+        $.post(php_self, {"road_name": road_name, "direction":direction, "section":section, "sensor_detail":true}, function(data){
             detail_win.document.getElementById("remind").remove();
             var detail_html = " \
                 <head>  \
@@ -296,6 +383,8 @@ ksort($road_similarity);
         },
         "json");
     }
+
+    
     
     function all_click(){
         var all_win = window.open('','all_chart','height=500, width=1100');
@@ -352,11 +441,10 @@ elseif ($_SERVER["REQUEST_METHOD"] == "POST"):
         $stid = oci_parse($db, $sql);
         $ret = oci_execute($stid, OCI_DEFAULT);
         if(!$ret){
-            echo htmlentities(oci_error($stid)['message']);
             exit;
         }
         $all_pattern = array();
-        while($row = oci_fetch_array($stid, OCI_RETURN_NULLS)){
+        while($row = oci_fetch_row($stid)){
             $road_name = $row[0];
             $direction = $row[1];
             $from_postmile = $row[2];
@@ -384,10 +472,9 @@ elseif ($_SERVER["REQUEST_METHOD"] == "POST"):
             $stid = oci_parse($db, $sql);
             $ret = oci_execute($stid, OCI_DEFAULT);
             if(!$ret){
-                echo htmlentities(oci_error($stid)['message']);
                 exit;
             }
-            while($row = oci_fetch_array($stid, OCI_RETURN_NULLS)){
+            while($row = oci_fetch_row($stid)){
                 $from_postmile = (int)$row[0];
                 $to_postmile = (int)$row[1];
                 $section = $from_postmile / 3;
@@ -411,7 +498,93 @@ elseif ($_SERVER["REQUEST_METHOD"] == "POST"):
             }
 
             echo json_encode($section_similarity);
-        elseif (!isset($_POST["detail"])):
+        elseif (isset($_POST["segment_detail"])):
+            $section = $_POST["section"];
+            $from_postmile = (int)$section * 3;
+
+            $mapping = array();
+            $sensors = array();
+
+            $sql = "SELECT link_id,start_nodeid,t.start_loc.SDO_POINT.x, t.start_loc.SDO_POINT.y,end_nodeid,t.end_loc.SDO_POINT.x,t.end_loc.SDO_POINT.y,length,wayid,segment_id,t.segment_start.SDO_POINT.x, t.segment_start.SDO_POINT.y, t.segment_end.SDO_POINT.x, t.segment_end.SDO_POINT.y,segment_len,segment_onstreet,on_edge_flag from ".$mapping_table." t WHERE road_name = '$road_name' AND direction = $direction AND from_postmile = $from_postmile";
+            $stid = oci_parse($db, $sql);
+            $ret = oci_execute($stid, OCI_DEFAULT);
+            if(!$ret){
+                exit;
+            }
+            while($row = oci_fetch_row($stid)){
+                $link_id = $row[0];
+                $from_nodeid = $row[1];
+                $from_loc = $row[3].', '.$row[2];
+                $to_nodeid = $row[4];
+                $to_loc = $row[6].', '.$row[5];
+                $length = $row[7];
+                $wayid = $row[8];
+                $segment_id = $row[9];
+                $segment_start = $row[11].','.$row[10];
+                $segment_end = $row[13].','.$row[12];
+                $segment_len = $row[14];
+                $segment_onstreet = $row[15];
+                $on_edge_flag = $row[16];
+                if (!array_key_exists($link_id, $mapping)){
+                    $mapping[$link_id] = array();
+                    $mapping[$link_id]['from_nodeid'] = $from_nodeid;
+                    $mapping[$link_id]['from_loc'] = $from_loc;
+                    $mapping[$link_id]['to_nodeid'] = $to_nodeid;
+                    $mapping[$link_id]['to_loc'] = $to_loc;
+                    $mapping[$link_id]['length'] = $length;
+                    $mapping[$link_id]['wayid'] = $wayid;
+                    $mapping[$link_id]['segments'] = array();
+                }
+                $mapping[$link_id]['segments'][$sengment_id] = array();
+                $mapping[$link_id]['segments'][$segment_id]['segment_start'] = $segment_start;
+                $mapping[$link_id]['segments'][$segment_id]['segment_end'] = $segment_end;
+                $mapping[$link_id]['segments'][$segment_id]['segment_len'] = $segment_len;
+                $mapping[$link_id]['segments'][$segment_id]['segment_onstreet'] = $segment_onstreet;
+                $mapping[$link_id]['segments'][$segment_id]['on_edge_flag'] = $on_edge_flag;
+            }
+
+            echo json_encode($mapping);
+
+        elseif (isset($_POST["sensor_detail"])):
+            $section = $_POST["section"];
+            $from_postmile = (int)$section * 3;
+
+            $mapping = array();
+            $sensors = array();
+
+            $sql = "SELECT link_id,start_nodeid,ST_X(start_loc),ST_Y(start_loc),end_nodeid,ST_X(end_loc),ST_Y(end_loc),length,wayid,sensor_id,ST_X(sensor_loc),ST_Y(sensor_loc) from ".$mapping_table." WHERE road_name = '$road_name' AND direction = $direction AND from_postmile = $from_postmile";
+            $stid = oci_parse($db, $sql);
+            $ret = oci_execute($stid, OCI_DEFAULT);
+            if(!$ret){
+                exit;
+            }
+            while($row = oci_fetch_row($stid)){
+                $link_id = $row[0];
+                $from_nodeid = $row[1];
+                $from_loc = $row[3].', '.$row[2];
+                $to_nodeid = $row[4];
+                $to_loc = $row[6].', '.$row[5];
+                $length = $row[7];
+                $wayid = $row[8];
+                $sensor_id = $row[9];
+                $sensor_loc = $row[11].', '.$row[10];
+                if (!array_key_exists($link_id, $mapping)){
+                    $mapping[$link_id] = array();
+                    $mapping[$link_id]['from_nodeid'] = $from_nodeid;
+                    $mapping[$link_id]['from_loc'] = $from_loc;
+                    $mapping[$link_id]['to_nodeid'] = $to_nodeid;
+                    $mapping[$link_id]['to_loc'] = $to_loc;
+                    $mapping[$link_id]['length'] = $length;
+                    $mapping[$link_id]['wayid'] = $wayid;
+                    $mapping[$link_id]['sensors'] = array();
+                }
+                $mapping[$link_id]['sensors'][$sensor_id] = array();
+                $mapping[$link_id]['sensors'][$sensor_id]['loc'] = $sensor_loc;
+            }
+
+            echo json_encode($mapping);
+
+        else:
             $section = $_POST["section"];
             $from_postmile = (int)$section * 3;
 
@@ -421,10 +594,9 @@ elseif ($_SERVER["REQUEST_METHOD"] == "POST"):
             $stid = oci_parse($db, $sql);
             $ret = oci_execute($stid, OCI_DEFAULT);
             if(!$ret){
-                echo htmlentities(oci_error($stid)['message']);
                 exit;
             }
-            $row = oci_fetch_array($stid, OCI_RETURN_NULLS);
+            $row = oci_fetch_row($stid);
             if ($row[0]){
                 $raw_inrix_pattern = substr($row[0], strpos($row[0], '{')+1, -1);
                 $inrix_pattern = explode(",", $raw_inrix_pattern);
@@ -453,46 +625,7 @@ elseif ($_SERVER["REQUEST_METHOD"] == "POST"):
 
             echo json_encode($patterns);
 
-        elseif (isset($_POST["detail"])):
-            $section = $_POST["section"];
-            $from_postmile = (int)$section * 3;
-
-            $mapping = array();
-            $sensors = array();
-
-            $sql = "SELECT link_id,start_nodeid,ST_X(start_loc),ST_Y(start_loc),end_nodeid,ST_X(end_loc),ST_Y(end_loc),length,wayid,sensor_id,ST_X(sensor_loc),ST_Y(sensor_loc) from ".$mapping_table." WHERE road_name = '$road_name' AND direction = $direction AND from_postmile = $from_postmile";
-            $stid = oci_parse($db, $sql);
-            $ret = oci_execute($stid, OCI_DEFAULT);
-            if(!$ret){
-                echo htmlentities(oci_error($stid)['message']);
-                exit;
-            }
-            while($row = oci_fetch_array($stid, OCI_RETURN_NULLS)){
-                $link_id = $row[0];
-                $from_nodeid = $row[1];
-                $from_loc = $row[3].', '.$row[2];
-                $to_nodeid = $row[4];
-                $to_loc = $row[6].', '.$row[5];
-                $length = $row[7];
-                $wayid = $row[8];
-                $sensor_id = $row[9];
-                $sensor_loc = $row[11].', '.$row[10];
-                if (!array_key_exists($link_id, $mapping)){
-                    $mapping[$link_id] = array();
-                    $mapping[$link_id]['from_nodeid'] = $from_nodeid;
-                    $mapping[$link_id]['from_loc'] = $from_loc;
-                    $mapping[$link_id]['to_nodeid'] = $to_nodeid;
-                    $mapping[$link_id]['to_loc'] = $to_loc;
-                    $mapping[$link_id]['length'] = $length;
-                    $mapping[$link_id]['wayid'] = $wayid;
-                    $mapping[$link_id]['sensors'] = array();
-                }
-                $mapping[$link_id]['sensors'][$sensor_id] = array();
-                $mapping[$link_id]['sensors'][$sensor_id]['loc'] = $sensor_loc;
-            }
-
-            echo json_encode($mapping);
-
+        
         endif;
     endif;
 endif;
