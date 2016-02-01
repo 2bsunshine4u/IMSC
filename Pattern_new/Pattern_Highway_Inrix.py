@@ -32,7 +32,6 @@ class Pattern(object):
 
     def query_oracle(self, sql):
         self.cursor.execute(sql)
-        print sql
         results = self.cursor.fetchall()
 
         return results
@@ -49,6 +48,8 @@ class Pattern(object):
         for road_name, direction, from_postmile,link,segment,on_edge_flag in results:
             if road_name not in mapping:
                 mapping[road_name] = {}
+            if road_name not in self.segments:
+                    self.segments[road_name] = []
             if direction not in mapping[road_name]:
                 mapping[road_name][direction] = {}
             section = int(from_postmile / 3)
@@ -58,8 +59,6 @@ class Pattern(object):
                 mapping[road_name][direction][section][link] = []
             if segment:
                 mapping[road_name][direction][section][link].append((segment, on_edge_flag))
-                if road_name not in self.segments:
-                    self.segments[road_name] = []
                 if segment not in self.segments[road_name]:
                     self.segments[road_name].append(segment)
         
@@ -96,6 +95,9 @@ class Pattern(object):
         return self.links  
 
     def road_segment_data(self, road_name):
+        if len(self.segments[road_name]) == 0:
+            return {}, {}
+
         ss = "("
         for segment_id in self.segments[road_name]:
             ss += str(segment_id) + ','
@@ -118,7 +120,7 @@ class Pattern(object):
         start_dt = "2015-06-25"
         end_dt = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        sql = "Select segment_id, date_time, speed from inrix_traffic_history where date_time >= to_date('"+start_dt+"', 'YYYY-MM-DD') and segment_id in "+ss+" and speed > 1 and speed < 150 "
+        sql = "Select segment_id, date_time, speed from inrix_traffic_history partition(SYS_P4936) where segment_id in "+ss+" and speed > 1 and speed < 150"
         results = self.query_oracle(sql)
         
         print "segment_data fetching finished, begin preprocessing"
@@ -173,7 +175,7 @@ class Pattern(object):
                     for segment, on_edge_flag in mapping[road_name][direction][section][link]: 
                         loc = segment_loc[segment]
                         if time in segment_data[segment][day]:
-                            sd = segment_data[segent][day][time]
+                            sd = segment_data[segment][day][time]
                             spd = sum(sd)/len(sd)
                             
                             avg_spd.append([spd, loc])
@@ -278,11 +280,12 @@ class Pattern(object):
                     
                     print "finish procesising, begin insert:",road,direction,section
                     for d in range(0,7):  
-                        ip_d = Utils.list_to_oracle_array(ip[d])
-                        #point = Utils.list_to_str(self.cal_similarity(ip[d], rp[d]))
+                        ip_d = Utils.list_to_str(ip[d])
+                        #point = Utils.list_to_oracle_array(self.cal_similarity(ip[d], rp[d]))
+                        point = Utils.list_to_str([0,0,0,0,0])
+
                         
-                        sql = "update "+ self.pattern_table +" set inrix_pattern = " + ip_d + ", similarity = 0 where road_name = '"+str(road)+"' and direction = "+str(direction)+" and from_postmile = "+str(section*3)+" and to_postmile = "+str(section*3+3)+" and weekday = "+days[d]
-                        print sql
+                        sql = "update "+ self.pattern_table +" set inrix_pattern = " + ip_d + ", similarity = "+point+" where road_name = '"+str(road)+"' and direction = "+str(direction)+" and from_postmile = "+str(section*3)+" and to_postmile = "+str(section*3+3)+" and weekday = "+days[d]
                         self.operation_oracle(sql)
                         
             self.conn.commit();
