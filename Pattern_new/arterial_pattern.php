@@ -4,12 +4,7 @@
     $username = "shuai";
     $password = "shuai2015pass";
 
-    $links_table = "links";
-    $nodes_table = "nodes";
-    $segments_table = "inrix_section_config";
-    $mapping_table = "segment_mapping_highway";
     $pattern_table = "inrix_pattern_arterial";
-
 
     $db  =  oci_connect($username,$password,"$host/$sid");
         if(!$db){
@@ -19,29 +14,16 @@
     date_default_timezone_set("America/Los_Angeles");
     $weekday = date("l");
 
-    $sql = "SELECT road_name, segment_id, length, direction, road_list, start_lon, start_lat, end_lon, end_lat from $pattern_table";
+    $sql = "SELECT distinct road_name from $pattern_table";
     $stid = oci_parse($db, $sql);
     $ret = oci_execute($stid, OCI_DEFAULT);
     if(!$ret){
         exit;
     }
-    $road_segments = array();
+    $roads = array();
     while(($row = oci_fetch_row($stid)) != false){
         $road_name = $row[0]; 
-        $segment_id = $row[1]; 
-        $length = $row[2]; 
-        $direction = $row[3]; 
-        $road_list = $row[4]; 
-        $start_lon = $row[5]; 
-        $start_lat = $row[6]; 
-        $end_lon = $row[7]; 
-        $end_lat = $row[8];
-        if (!array_key_exists($road_name, $road_segments)){
-            $road_segments[$road_name] = array();
-        }
-        if (!array_key_exists($segment_id, $road_segments[$road_name])){
-            $road_segments[$road_name][$segment_id] = array($start_lon, $start_lat, $end_lon, $end_lat, $road_name, $length, $direction, $road_list);
-        }
+        array_push($roads, $road_name);
     }
 ?>
 <!DOCTYPE html>
@@ -51,6 +33,7 @@
 <script src="http://maps.googleapis.com/maps/api/js?key=AIzaSyBX-020tzotCYjKZb4_p9r-ASMBjZtcgbE"></script>
 <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+<script src="Chart.js"></script>
 <title>Arterial Segments</title>
 </head>
 
@@ -73,7 +56,7 @@
 <script>
 var map;
 var marker_array = [];
-var road_segments = <?php echo json_encode($road_segments); ?>;
+var road_list = <?php echo json_encode($roads); ?>;
 
 function initialize(){
     var mapProp = {
@@ -86,8 +69,8 @@ function initialize(){
 
     var option;
     //$("#gpx_id").append("<option value='All'>All</option>");
-    for (var road_name in road_segments){
-        option = "<option value='"+road_name+"'>"+road_name+"</option>";
+    for (var road_name in road_list){
+        option = "<option value='"+road_list[road_name]+"'>"+road_list[road_name]+"</option>";
         $("#roads").append(option); 
     } 
 };
@@ -95,8 +78,6 @@ function initialize(){
 google.maps.event.addDomListener(window, 'load', initialize);
     
 $("#show_segments").click(function(){
-    show_result(road_segments[$("#roads").val()]);
-    /*
     $("#show_segments").html("Please Wait...");
     $("#show_segments").prop('disabled', 'true');
     $.ajax({
@@ -117,7 +98,7 @@ $("#show_segments").click(function(){
         error: function(xhr){
             alert("An error occured: " + xhr.status + " " + xhr.statusText);
         }
-    });*/
+    });
 });
     
 function show_result(segments){
@@ -137,6 +118,7 @@ function show_result(segments){
         var length = segments[segment_id][5]; 
         var direction = segments[segment_id][6];
         var road_list = segments[segment_id][7];
+        var pattern = segments[segment_id][8];
 
         var start_pt = new google.maps.LatLng(start_lat, start_lon);
         var end_pt = new google.maps.LatLng(end_lat, end_lon);
@@ -162,28 +144,57 @@ function show_result(segments){
         marker_array.push(polyline);
         polyline.setMap(map);
 
-        var content = "<b>Road: " + road_name + "</b><br/>";
-        content += "<b>segment_id: " + segment_id + "</b><br/>";
-        content += "direction: " + direction + "</br>";
-        content += "road_list: " + road_list + "</br>";
-        content += "length: " + length + " km</br>";
-        content += "direction: " + direction + "</br>";
-        content += "start_location: " + start_lat + ", " + start_lon + "</br>";
-        content += "end_location: " + end_lat + ", " + end_lon + "</br>";
+        var content = "<table class='table table-condensed'><tr><td><b>Road: </b></td><td><b>" + road_name + "</b></td></tr>";
+        content += "<tr><td><b>segment_id: </b></td><td><b>" + segment_id + "</b></td></tr>";
+        content += "<tr><td>direction: </td><td>" + direction + "</td></tr>";
+        content += "<tr><td>road_list: </td><td>" + road_list + "</td></tr>";
+        content += "<tr><td>length: </td><td>" + length + " km</td></tr>";
+        content += "<tr><td>direction: </td><td>" + direction + "</td></tr>";
+        content += "<tr><td>start_position: </td><td>" + start_lat + ", " + start_lon + "</td></tr>";
+        content += "<tr><td>end_position: </td><td>" + end_lat + ", " + end_lon + "</td></tr>";
+        content += "<tr><td colspan='2'>inrix_pattern: </td></tr><tr><td colspan='2'><canvas id='segment_chart' width='600' height='250' /></td></tr></table>";
         var mid = new google.maps.LatLng((start_lat+end_lat)/2.0, (start_lon+end_lon)/2.0);
-        attachMessage(polyline, mid, content);
+        attachMessage(polyline, mid, content, pattern);
     }
 }
 
     
-var infowindow = new google.maps.InfoWindow({maxWidth:300});
+var infowindow = new google.maps.InfoWindow({maxWidth:800});
     
-function attachMessage(marker, position, message) {
+function attachMessage(marker, position, message, pattern) {
     marker.addListener('click', function() {
         infowindow.setContent(message);
         infowindow.setPosition(position);
         infowindow.open(marker.get('map'));
-        
+        var ctx = document.getElementById("segment_chart").getContext("2d");
+        var chart_data = {
+            labels : ["6:00","6:15","6:30","6:45","7:00","7:15","7:30","7:45","8:00","8:15","8:30","8:45","9:00","9:15","9:30","9:45",
+        "10:00","10:15","10:30","10:45","11:00","11:15","11:30","11:45","12:00","12:15","12:30","12:45","13:00","13:15","13:30","13:45",
+        "14:00","14:15","14:30","14:45","15:00","15:15","15:30","15:45","16:00","16:15","16:30","16:45","17:00","17:15","17:30","17:45",
+        "18:00","18:15","18:30","18:45","19:00","19:15","19:30","19:45","20:00","20:15","20:30","20:45"
+            ],
+            datasets : [
+                {
+                fillColor : "rgba(255,255,255,0)",
+                strokeColor : "rgba(0,0,255,1)",
+                pointColor : "rgba(0,180,205,1)",
+                pointStrokeColor : "#fff",
+                data : pattern
+                }
+            ]
+        }
+        var myNewChart = new Chart(ctx).Line(chart_data, {
+            scaleOverride :true ,   //是否用硬编码重写y轴网格线
+            scaleSteps : 11,        //y轴刻度的个数
+            scaleStepWidth : 10,   //y轴每个刻度的宽度
+            scaleStartValue : 20,    //y轴的起始值
+            pointDot : true,        //是否显示点
+            pointDotRadius : 5,     //点的半径  
+            pointDotStrokeWidth : 1,//点的线宽
+            datasetStrokeWidth : 3, //数据线的线宽
+            animation : true,       //是否有动画效果
+            animationSteps : 60    //动画的步数
+        });
     });
 }
     
