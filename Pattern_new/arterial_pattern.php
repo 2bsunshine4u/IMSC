@@ -43,7 +43,7 @@
         <p>Click on segments to see details.</p>
         <div id="googleMap" style="height:640px;"></div>
         <div style="padding-top:20px; padding-bottom:80px; margin-left:auto; margin-right:auto;width:70%;">
-            <label class="control-label col-md-2" for="roads" style="margin-top:7px">GPX_ID: </label>
+            <label class="control-label col-md-2" for="roads" style="margin-top:7px">Road: </label>
             <div class="col-md-8">
                 <select class="form-control" id="roads"></select>
             </div>
@@ -109,6 +109,8 @@ function show_result(segments){
     }
     marker_array = [];
 
+    var weekday = '<?php echo $weekday; ?>';
+
     for (var segment_id in segments){
         var start_lon = parseFloat(segments[segment_id][0]); 
         var start_lat = parseFloat(segments[segment_id][1]);
@@ -118,7 +120,7 @@ function show_result(segments){
         var length = segments[segment_id][5]; 
         var direction = segments[segment_id][6];
         var road_list = segments[segment_id][7];
-        var pattern = segments[segment_id][8];
+        var patterns = segments[segment_id][8];
 
         var start_pt = new google.maps.LatLng(start_lat, start_lon);
         var end_pt = new google.maps.LatLng(end_lat, end_lon);
@@ -152,49 +154,67 @@ function show_result(segments){
         content += "<tr><td>direction: </td><td>" + direction + "</td></tr>";
         content += "<tr><td>start_position: </td><td>" + start_lat + ", " + start_lon + "</td></tr>";
         content += "<tr><td>end_position: </td><td>" + end_lat + ", " + end_lon + "</td></tr>";
-        content += "<tr><td colspan='2'>inrix_pattern: </td></tr><tr><td colspan='2'><canvas id='segment_chart' width='600' height='250' /></td></tr></table>";
+        content += "<tr><td><label class='control-label' for='#weekday'>inrix_pattern: </label></td>";
+        content += "<td><select class='form-control' id='weekday'>";
+        content += "<option value='Monday'>Monday</option>";
+        content += "<option value='Tuesday'>Tuesday</option>";
+        content += "<option value='Wednesday'>Wednesday</option>";
+        content += "<option value='Thursday'>Thursday</option>";
+        content += "<option value='Friday'>Friday</option>";
+        content += "<option value='Saturday'>Saturday</option>";
+        content += "<option value='Sunday'>Sunday</option></select></td></tr>";
+        content += "<tr><td colspan='2'><canvas id='segment_chart' width='600' height='250' /></td></tr></table>";
         var mid = new google.maps.LatLng((start_lat+end_lat)/2.0, (start_lon+end_lon)/2.0);
-        attachMessage(polyline, mid, content, pattern);
+        attachMessage(polyline, mid, content, patterns, weekday);
     }
 }
 
     
 var infowindow = new google.maps.InfoWindow({maxWidth:800});
     
-function attachMessage(marker, position, message, pattern) {
+function attachMessage(marker, position, message, patterns, weekday) {
     marker.addListener('click', function() {
         infowindow.setContent(message);
         infowindow.setPosition(position);
         infowindow.open(marker.get('map'));
-        var ctx = document.getElementById("segment_chart").getContext("2d");
-        var chart_data = {
-            labels : ["6:00","6:15","6:30","6:45","7:00","7:15","7:30","7:45","8:00","8:15","8:30","8:45","9:00","9:15","9:30","9:45",
-        "10:00","10:15","10:30","10:45","11:00","11:15","11:30","11:45","12:00","12:15","12:30","12:45","13:00","13:15","13:30","13:45",
-        "14:00","14:15","14:30","14:45","15:00","15:15","15:30","15:45","16:00","16:15","16:30","16:45","17:00","17:15","17:30","17:45",
-        "18:00","18:15","18:30","18:45","19:00","19:15","19:30","19:45","20:00","20:15","20:30","20:45"
-            ],
-            datasets : [
-                {
-                fillColor : "rgba(255,255,255,0)",
-                strokeColor : "rgba(0,0,255,1)",
-                pointColor : "rgba(0,180,205,1)",
-                pointStrokeColor : "#fff",
-                data : pattern
-                }
-            ]
-        }
-        var myNewChart = new Chart(ctx).Line(chart_data, {
-            scaleOverride :true ,   //是否用硬编码重写y轴网格线
-            scaleSteps : 11,        //y轴刻度的个数
-            scaleStepWidth : 10,   //y轴每个刻度的宽度
-            scaleStartValue : 20,    //y轴的起始值
-            pointDot : true,        //是否显示点
-            pointDotRadius : 5,     //点的半径  
-            pointDotStrokeWidth : 1,//点的线宽
-            datasetStrokeWidth : 3, //数据线的线宽
-            animation : true,       //是否有动画效果
-            animationSteps : 60    //动画的步数
+        show_chart(patterns[weekday]);
+        $("#weekday option[value='"+weekday+"']").prop('selected', 'selected');
+        $("#weekday").change(function(event) {
+            //document.write($("#weekday").val());
+            show_chart(patterns[$("#weekday").val()]);
         });
+    });
+}
+
+function show_chart(pattern){
+    var ctx = document.getElementById("segment_chart").getContext("2d");
+    var chart_data = {
+        labels : ["6:00","6:15","6:30","6:45","7:00","7:15","7:30","7:45","8:00","8:15","8:30","8:45","9:00","9:15","9:30","9:45",
+    "10:00","10:15","10:30","10:45","11:00","11:15","11:30","11:45","12:00","12:15","12:30","12:45","13:00","13:15","13:30","13:45",
+    "14:00","14:15","14:30","14:45","15:00","15:15","15:30","15:45","16:00","16:15","16:30","16:45","17:00","17:15","17:30","17:45",
+    "18:00","18:15","18:30","18:45","19:00","19:15","19:30","19:45","20:00","20:15","20:30","20:45"
+        ],
+        datasets : [
+            {
+            fillColor : "rgba(255,255,255,0)",
+            strokeColor : "rgba(0,0,255,1)",
+            pointColor : "rgba(0,180,205,1)",
+            pointStrokeColor : "#fff",
+            data : pattern
+            }
+        ]
+    }
+    var myNewChart = new Chart(ctx).Line(chart_data, {
+        scaleOverride :false ,   
+        scaleSteps : 11,        
+        scaleStepWidth : 10,   
+        scaleStartValue : 20,    
+        pointDot : true,        
+        pointDotRadius : 5,     
+        pointDotStrokeWidth : 1,
+        datasetStrokeWidth : 3, 
+        animation : true,       
+        animationSteps : 60    
     });
 }
     

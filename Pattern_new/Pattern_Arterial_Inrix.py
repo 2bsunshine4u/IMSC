@@ -65,7 +65,7 @@ class Pattern(object):
         
         for segment_id in config:
             print "segment_id: ",segment_id
-            sql = "Select segment_id, date_time, speed from "+self.segment_data_table+" partition(SYS_P4936) where segment_id = "+str(segment_id)+" and speed > 1"
+            sql = "Select segment_id, date_time, speed from "+self.segment_data_table+" partition(SYS_P4928) where segment_id = "+str(segment_id)+" and speed > 1"
             results = self.query_oracle(sql)
             
             for segment_id, dt, speed in results:

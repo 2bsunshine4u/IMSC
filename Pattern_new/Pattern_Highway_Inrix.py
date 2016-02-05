@@ -25,7 +25,13 @@ class Pattern(object):
             print "Connected."
         self.cursor = self.conn.cursor()
         
-        
+        print "Connecting to database ......"
+        self.pg_conn_to = psycopg2.connect(host='osm-workspace-2.cfmyklmn07yu.us-west-2.rds.amazonaws.com', port='5432', database='osm', user='ds', password='928Sbi2sl')
+        if self.pg_conn_to:
+            print "Connected."
+            #self.conn_to.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+        self.pg_cursor = self.pg_conn_to.cursor()
+
     def close_db(self):
         self.conn.commit()
         self.conn.close()
@@ -125,6 +131,8 @@ class Pattern(object):
         
         print "segment_data fetching finished, begin preprocessing"
         for segment_id, dt, speed in results:
+            speed = float(speed)*1.609344
+
             dt = dt.replace(second = 0)
             if dt.minute >=0 and dt.minute < 15:
                 dt = dt.replace(minute = 0)
@@ -137,10 +145,12 @@ class Pattern(object):
 
             str_dt = dt.strftime("%Y-%m-%d %H:%M:%S")
             dt = datetime.datetime.strptime(str_dt, "%Y-%m-%d %H:%M:%S")
-            '''
+            
+            dt -= datetime.timedelta(hours=8)
+
             if dt.date() >= datetime.date(dt.year,3,18) and dt.date() <= datetime.date(dt.year,11,1):
                 dt += datetime.timedelta(hours=1)
-            '''
+            
             day = dt.weekday()
             time = dt.time()
             
@@ -208,7 +218,34 @@ class Pattern(object):
                 
         self.ip[(road_name, direction, section)] = day_spd
         
-        return day_spd        
+        return day_spd   
+
+    def realtime_pattern(self, road_name, direction, section):
+        print "realtime pattern processing on:",road_name, direction, section
+
+        days = ["'Monday'", "'Tuesday'", "'Wednesday'", "'Thursday'", "'Friday'", "'Saturday'", "'Sunday'"]
+
+        rp = {}
+
+        for d in range(0,7):
+            sql =  "SELECT realtime_pattern from ss_highway_pattern WHERE road_name = '"+str(road_name)+"' AND direction = "+str(direction)+" AND from_postmile = "+str(section*3)+" AND day = " + days[d]
+            self.pg_cursor.execute(sql)
+            results = self.pg_cursor.fetchall()
+
+            rp[d] = []
+            if len(results) > 0:
+                rp[d] = results[0][0]
+                for i in range(0, len(rp[d])):
+                    if not rp[d][i]:
+                        rp[d][i] = 0
+
+                rp[d] = map(lambda x: float(x), rp[d])
+
+            else:
+                print "empty realtime pattern:", road_name, direction,section
+                rp[d] = [0]*60
+
+        return rp
     
     def cal_similarity(self, x, y):
         p = {}
@@ -257,6 +294,7 @@ class Pattern(object):
                 print "Begin road", road,"direction:",direction
                 for section in mapping[road][direction]:
                     ip = self.inrix_pattern(road, direction, section, mapping, segment_loc, segment_data)
+                    rp = self.realtime_pattern(road, direction, section)
                     
                     for d in range(0,7):
                         if ip[d].count(0) == 60:
@@ -281,11 +319,13 @@ class Pattern(object):
                     print "finish procesising, begin insert:",road,direction,section
                     for d in range(0,7):  
                         ip_d = Utils.list_to_str(ip[d])
-                        #point = Utils.list_to_oracle_array(self.cal_similarity(ip[d], rp[d]))
-                        point = Utils.list_to_str([0,0,0,0,0])
+                        rp_d = Utils.list_to_str(rp[d])
+                        point = Utils.list_to_str(self.cal_similarity(ip[d], rp[d]))
+
+                        print ip_d, rp_d, point
 
                         
-                        sql = "update "+ self.pattern_table +" set inrix_pattern = " + ip_d + ", similarity = "+point+" where road_name = '"+str(road)+"' and direction = "+str(direction)+" and from_postmile = "+str(section*3)+" and to_postmile = "+str(section*3+3)+" and weekday = "+days[d]
+                        sql = "update "+ self.pattern_table +" set inrix_pattern = " + ip_d + ", realtime_pattern = "+ rp_d +", similarity = "+point+" where road_name = '"+str(road)+"' and direction = "+str(direction)+" and from_postmile = "+str(section*3)+" and to_postmile = "+str(section*3+3)+" and weekday = "+days[d]
                         self.operation_oracle(sql)
                         
             self.conn.commit();
