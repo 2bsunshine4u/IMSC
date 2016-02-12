@@ -16,17 +16,24 @@
 		$segment_id = $_POST['segment_id'];
 		$road = $_POST['road'];
 		$address = $_POST['address'];
+		$rn = $_POST['rn'];
+
+		$sql = "";
 
 		if ($segment_id == "truncate"){
-			$sql = "truncate table $geocode_table";
+			if ($rn == 0){
+				$sql = "truncate table $geocode_table";
+			}
 		}
 		else {
-			$sql = "insert into $geocode_table (segment_id, road, address) values ($segment_id, '$road', '$address')";
+			$sql = "insert into $geocode_table (segment_id, road, address, rn) values ($segment_id, '$road', '$address', $rn)";
 		}
-		$stid = oci_parse($db, $sql);
-		$ret = oci_execute($stid);
+		if ($sql != ""){
+			$stid = oci_parse($db, $sql);
+			$ret = oci_execute($stid);
+		}
 
-		$rn = $_POST['rn'] + 1;
+		$rn += 1;
 		$sql = "select * from (select segment_id, start_lon, end_lon, start_lat, end_lat, rownum as rn from $config_table) where rn = $rn";
 		$stid = oci_parse($db, $sql);
 		$ret = oci_execute($stid);
@@ -38,15 +45,16 @@
 
 
 	else:
-		$results = array();
-
-		$sql = "select * from (select segment_id, start_lon, end_lon, start_lat, end_lat, rownum as rn from $config_table) where rn = 1";
+		$sql = "select max(rn) from $geocode_table";
 		$stid = oci_parse($db, $sql);
 		$ret = oci_execute($stid);
 		$row = oci_fetch_row($stid);
-        $lon = ($row[1] + $row[2]) / 2.0;
-        $lat = ($row[3] + $row[4]) / 2.0;
-        $results[$row[0]] = array($lon, $lat, $row[5]);
+		if ($row[0] == ''){
+			$max_rn = 0;
+		}
+		else{
+			$max_rn = $row[0];
+		}
 ?>
 <html>
 <body>
@@ -57,16 +65,15 @@
 <script src="https://code.jquery.com/jquery.min.js"></script>
 <script type="text/javascript">
 	$(function(){
-		var locations = <?php echo json_encode($results); ?>;
 		var geocoder = new google.maps.Geocoder;
-		writeDB(geocoder, "truncate", "", "", 0);
+		writeDB(geocoder, "truncate", "", "", <?php echo $max_rn; ?>);
 	});
 
 	function writeDB(geocoder, segment_id, road, address, rownum){
 		$.post("<?php echo $_SERVER['PHP_SELF']; ?>", {segment_id: segment_id, road: road, address: address, rn: rownum}, function(data) {
 			var latlng = {lat: data[2], lng: data[1]};
 			var rn = data[3];
-			$("p").after("segment_id: "+segment_id+"        road: "+road+"          rn: "+rownum+"        location: "+data[2]+", "+data[1]+"<br />");
+			$("p").after("segment_id: "+segment_id+"        road: "+road+"          rn: "+rownum+"<br />");
 			setTimeout(function(){geocode(geocoder, latlng, data[0], rn);}, 2000);
 		}, "json");
 	}
