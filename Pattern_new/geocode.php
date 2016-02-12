@@ -14,13 +14,14 @@
 
 	if(!empty($_POST['segment_id'])):
 		$segment_id = $_POST['segment_id'];
-		$road = $_POST['address'];
+		$road = $_POST['road'];
+		$address = $_POST['address'];
 
 		if ($segment_id == "truncate"){
 			$sql = "truncate table $geocode_table";
 		}
 		else {
-			$sql = "insert into $geocode_table (segment_id, road) values ($segment_id, '$road')";
+			$sql = "insert into $geocode_table (segment_id, road, address) values ($segment_id, '$road', '$address')";
 		}
 		$stid = oci_parse($db, $sql);
 		$ret = oci_execute($stid);
@@ -58,14 +59,14 @@
 	$(function(){
 		var locations = <?php echo json_encode($results); ?>;
 		var geocoder = new google.maps.Geocoder;
-		writeDB(geocoder, "truncate", "", 0);
+		writeDB(geocoder, "truncate", "", "", 0);
 	});
 
-	function writeDB(geocoder, segment_id, address, rownum){
-		$.post("<?php echo $_SERVER['PHP_SELF']; ?>", {segment_id: segment_id, address: address, rn: rownum}, function(data) {
+	function writeDB(geocoder, segment_id, road, address, rownum){
+		$.post("<?php echo $_SERVER['PHP_SELF']; ?>", {segment_id: segment_id, road: road, address: address, rn: rownum}, function(data) {
 			var latlng = {lat: data[2], lng: data[1]};
 			var rn = data[3];
-			$("p").after("segment_id: "+segment_id+"        road: "+address+"          rn: "+rownum+"        location: "+data[2]+", "+data[1]+"<br />");
+			$("p").after("segment_id: "+segment_id+"        road: "+road+"          rn: "+rownum+"        location: "+data[2]+", "+data[1]+"<br />");
 			setTimeout(function(){geocode(geocoder, latlng, data[0], rn);}, 2000);
 		}, "json");
 	}
@@ -76,8 +77,8 @@
       			if (results[0]) {
       				var address = results[0].formatted_address.split(",")[0];
       				console.log(results[0].formatted_address);
-      				address = address.replace(/^\d+(-\d+)?\s/g, '');
-      				writeDB(geocoder, segment_id, address, rn);
+      				road = address.replace(/^\d+(-\d+)?\s/g, '');
+      				writeDB(geocoder, segment_id, road, results[0].formatted_address, rn);
 				}else {
         			window.alert('No results found');
       			}
