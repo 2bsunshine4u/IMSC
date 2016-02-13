@@ -25,17 +25,8 @@
 				$sql = "truncate table $geocode_table";
 			}
 		}
-		else {
-			$sql = "select count(*) from $geocode_table where segment_id = $segment_id";
-			$stid = oci_parse($db, $sql);
-			$ret = oci_execute($stid);
-			$row = oci_fetch_row($stid);
-			if ($row[0] == 0){
-				$sql = "insert into $geocode_table (segment_id, road, address, rn) values ($segment_id, '$road', '$address', $rn)";
-			}
-			else {
-				$sql = "";
-			}
+		else {				
+			$sql = "insert into $geocode_table (segment_id, road, address, rn) values ($segment_id, '$road', '$address', $rn)";
 		}
 		if ($sql != ""){
 			$stid = oci_parse($db, $sql);
@@ -80,12 +71,11 @@
 
 	function writeDB(geocoder, segment_id, road, address, rownum){
 		$.post("<?php echo $_SERVER['PHP_SELF']; ?>", {segment_id: segment_id, road: road, address: address, rn: rownum}, function(data) {
-			console.log(data);
 			var latlng = {lat: data[2], lng: data[1]};
 			var rn = data[3];
 			$("p").after("segment_id: "+segment_id+"        road: "+road+"          rn: "+rownum+"<br />");
 			if (data){
-				setTimeout(function(){geocode(geocoder, latlng, data[0], rn);}, 2000);
+				setTimeout(function(){geocode(geocoder, latlng, data[0], rn);}, 1000);
 			}
 			else {
 				alert("no data returned from backend!");
