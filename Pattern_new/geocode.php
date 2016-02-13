@@ -26,7 +26,16 @@
 			}
 		}
 		else {
-			$sql = "insert into $geocode_table (segment_id, road, address, rn) values ($segment_id, '$road', '$address', $rn)";
+			$sql = "select count(*) from $geocode_table where segment_id = $segment_id";
+			$stid = oci_parse($db, $sql);
+			$ret = oci_execute($stid);
+			$row = oci_fetch_row($stid);
+			if ($row[0] == 0){
+				$sql = "insert into $geocode_table (segment_id, road, address, rn) values ($segment_id, '$road', '$address', $rn)";
+			}
+			else {
+				$sql = "";
+			}
 		}
 		if ($sql != ""){
 			$stid = oci_parse($db, $sql);
@@ -71,10 +80,16 @@
 
 	function writeDB(geocoder, segment_id, road, address, rownum){
 		$.post("<?php echo $_SERVER['PHP_SELF']; ?>", {segment_id: segment_id, road: road, address: address, rn: rownum}, function(data) {
+			console.log(data);
 			var latlng = {lat: data[2], lng: data[1]};
 			var rn = data[3];
 			$("p").after("segment_id: "+segment_id+"        road: "+road+"          rn: "+rownum+"<br />");
-			setTimeout(function(){geocode(geocoder, latlng, data[0], rn);}, 2000);
+			if (data){
+				setTimeout(function(){geocode(geocoder, latlng, data[0], rn);}, 2000);
+			}
+			else {
+				alert("no data returned from backend!");
+			}
 		}, "json");
 	}
 
@@ -87,10 +102,11 @@
       				road = address.replace(/^\d+(-\d+)?\s/g, '');
       				writeDB(geocoder, segment_id, road, results[0].formatted_address, rn);
 				}else {
-        			window.alert('No results found');
+        			alert('No results found');
       			}
     		} else {
-      			window.alert('Geocoder failed due to: ' + status);
+      			document.write('Geocoder failed due to: ' + status + '<br />');
+      			window.location.reload();
     		}
 		});
 	}
