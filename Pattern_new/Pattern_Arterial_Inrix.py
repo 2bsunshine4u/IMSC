@@ -34,24 +34,53 @@ class Pattern(object):
     def operation_oracle(self, sql):
         self.cursor.execute(sql)
 
-    def segment_config(self, road_name):
-        config = {}
-        sql = "select distinct segment_id, length_kms, road_list, direction, start_lon, start_lat, end_lon, end_lat from "+self.segment_config_table+" where road_list like '%"+road_name+"%'"
+    def init_rnsets(self, interval):
+        sql = "select count(*) from "+self.segment_config_table
         results = self.query_oracle(sql)
-        for segment_id, length, road_list, direction, start_lon, start_lat, end_lon, end_lat in results:
-            if segment_id not in config:
+        max_rn = results[0][0]
+
+        sql = "select max(rn) from "+self.pattern_table
+        results = self.query_oracle(sql)
+        cur_rn = results[0][0]
+        if not cur_rn:
+            cur_rn = 0
+
+        print "max rownum: ", max_rn, "current rownum:", cur_rn, "interval: ", interval
+
+        rn_sets = []
+
+        for i in range(cur_rn + 1, max_rn+1, interval):
+            if i + interval - 1 <= max_rn:
+                rn_sets.append((i, i+interval))
+            else:
+                rn_sets.append((i, max_rn+1))
+
+        return rn_sets
+
+    def segment_config(self, min_rn, max_rn):
+        config = {}
+        sql = "select segment_id, length_kms, road_name, road_list, direction, start_lon, start_lat, end_lon, end_lat, rn from (select distinct s.*, rownum as rn from "+self.segment_config_table+" s) where rn >= "+str(min_rn)+" and rn < "+str(max_rn)
+        results = self.query_oracle(sql)
+        for segment_id, length, road_name, road_list, direction, start_lon, start_lat, end_lon, end_lat, rn in results:
+            sql = "select count(*) from "+self.pattern_table+" where segment_id = "+str(segment_id)
+            count = self.query_oracle(sql)[0][0]
+            if count == 0 and segment_id not in config:
                 config[segment_id] = {}
                 config[segment_id]["length"] = length
+                config[segment_id]["road_name"] = road_name
                 config[segment_id]["road_list"] = road_list
                 config[segment_id]["direction"] = direction
                 config[segment_id]["start_lon"] = start_lon
                 config[segment_id]["start_lat"] = start_lat
                 config[segment_id]["end_lon"] = end_lon
                 config[segment_id]["end_lat"] = end_lat
+                config[segment_id]["rn"] = rn
+            else:
+                print "segment_id: ", segment_id, "is already in pattern_table!!"
 
         return config
 
-    def segment_data(self, road_name, config):
+    def segment_data(self, min_rn, max_rn, config):
         month_dict = {
             "Jan 2014": "SYS_P4902",
             "Feb 2014": "SYS_P4904",
@@ -73,7 +102,8 @@ class Pattern(object):
             "June 2015": "SYS_P4936"
         }
 
-        print "segment_data fetching on road", road_name
+        print "segment_data fetching on rownum from ", min_rn, "to", max_rn
+
         segment_data = {}
         for segment_id in config:
             segment_data[segment_id] = {}
@@ -86,7 +116,7 @@ class Pattern(object):
         end_dt = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         for segment_id in segment_data:
-            print "segment_id: ",segment_id
+            print "segment_id: ",segment_id, "rownum:", config[segment_id]["rn"]
             for month in segment_data[segment_id]:
                 sql = "Select segment_id, date_time, speed from "+self.segment_data_table+" partition("+ month_dict[month] +") where segment_id = "+str(segment_id)+" and speed > 1"
                 results = self.query_oracle(sql)
@@ -121,8 +151,8 @@ class Pattern(object):
             
         return segment_data
                 
-    def inrix_pattern(self, road_name, config, segment_data):
-        print "inrix pattern processing on:",road_name
+    def inrix_pattern(self, min_rn, max_rn, config, segment_data):
+        print "inrix pattern processing on rownum from", min_rn, "to", max_rn
         
         pattern = {}
         for segment_id in segment_data:
@@ -151,19 +181,17 @@ class Pattern(object):
         return pattern
         
     
-    def generate_all(self, roads):
+    def generate_all(self):
         days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     
-        print "Table has been emptied!!!"
-        sql = "truncate table " + self.pattern_table
-        self.operation_oracle(sql)
+        rn_sets = self.init_rnsets(1);
         
-        for road_name in roads:
-            config = self.segment_config(road_name)
-            segment_data = self.segment_data(road_name, config)
-            inrix_pattern = self.inrix_pattern(road_name, config, segment_data)
+        for min_rn, max_rn in rn_sets:
+            config = self.segment_config(min_rn, max_rn)
+            segment_data = self.segment_data(min_rn, max_rn, config)
+            inrix_pattern = self.inrix_pattern(min_rn, max_rn, config, segment_data)
 
-            print "finish procesising, begin insert:",road_name
+            print "finish procesising, begin insert rownum:", min_rn, "to", max_rn
             for segment_id in inrix_pattern:
                 for month in inrix_pattern[segment_id]:
                     for day in range(0,7):  
@@ -171,8 +199,8 @@ class Pattern(object):
 
                         print segment_id, days[day], ip_d
                         
-                        sql = "insert into "+ self.pattern_table +" (road_name, direction, segment_id, length, road_list, start_lon, start_lat, end_lon, end_lat, month, weekday, inrix_pattern) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12)"
-                        data = (road_name, config[segment_id]["direction"], segment_id, config[segment_id]["length"], config[segment_id]["road_list"], config[segment_id]["start_lon"], config[segment_id]["start_lat"], config[segment_id]["end_lon"], config[segment_id]["end_lat"], month, days[day], ip_d)
+                        sql = "insert into "+ self.pattern_table +" (road_name, direction, segment_id, length, road_list, start_lon, start_lat, end_lon, end_lat, month, weekday, inrix_pattern, rn) values (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12, :13)"
+                        data = (config[segment_id]["road_name"], config[segment_id]["direction"], segment_id, config[segment_id]["length"], config[segment_id]["road_list"], config[segment_id]["start_lon"], config[segment_id]["start_lat"], config[segment_id]["end_lon"], config[segment_id]["end_lat"], month, days[day], ip_d, config[segment_id]["rn"])
                         self.insert_oracle(sql, data)
                         
             self.conn.commit();
@@ -180,10 +208,8 @@ class Pattern(object):
                 
 if __name__ == '__main__':
     lapattern = Pattern("inrix_section_config", "inrix_traffic_history", "inrix_pattern_arterial")
-
-    roads = ["Figueroa St", "Aviation Blvd", "La Cienega Blvd", "Martin Luther King Jr Blvd", "Grand Ave", "La Cienega Ave", "S Hoover St"]
     
-    lapattern.generate_all(roads)
+    lapattern.generate_all()
     
     lapattern.close_db()
                 
