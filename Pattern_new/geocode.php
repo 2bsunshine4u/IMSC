@@ -16,14 +16,15 @@
 		$segment_id = $_POST['segment_id'];
 		$road = $_POST['road'];
 		$address = $_POST['address'];
+		if (strpos($address, '\'')) {
+			$address = str_replace('\'', '\'\'', $address);
+		}
 		$rn = $_POST['rn'];
 
 		$sql = "";
 
 		if ($segment_id == "truncate"){
-			if ($rn == 0){
-				$sql = "truncate table $geocode_table";
-			}
+				//$sql = "truncate table $geocode_table";
 		}
 		else {				
 			$sql = "insert into $geocode_table (segment_id, road, address, rn) values ($segment_id, '$road', '$address', $rn)";
@@ -88,8 +89,11 @@
 			if (status === google.maps.GeocoderStatus.OK) {
       			if (results[0]) {
       				var address = results[0].formatted_address.split(",")[0];
+      				if (address.indexOf('\'') >= 0){
+      					address = results[0].formatted_address.split(",")[1];
+      				}
       				console.log(results[0].formatted_address);
-      				road = address.replace(/^\d+(-\d+)?\s/g, '');
+      				road = address.replace(/^\s?\d+(-\d+)?\s/g, '');
       				writeDB(geocoder, segment_id, road, results[0].formatted_address, rn);
 				}else {
         			alert('No results found');

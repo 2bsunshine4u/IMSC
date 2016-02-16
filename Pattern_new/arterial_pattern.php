@@ -5,6 +5,7 @@
     $password = "shuai2015pass";
 
     $pattern_table = "inrix_pattern_arterial";
+    $geocode_table = "reverse_geocode";
 
     $db  =  oci_connect($username,$password,"$host/$sid");
         if(!$db){
@@ -14,7 +15,7 @@
     date_default_timezone_set("America/Los_Angeles");
     $weekday = date("l");
 
-    $sql = "SELECT distinct road_name from $pattern_table";
+    $sql = "SELECT distinct road from $geocode_table";
     $stid = oci_parse($db, $sql);
     $ret = oci_execute($stid, OCI_DEFAULT);
     if(!$ret){
@@ -43,9 +44,13 @@
         <p>Click on segments to see details.</p>
         <div id="googleMap" style="height:640px;"></div>
         <div style="padding-top:20px; padding-bottom:80px; margin-left:auto; margin-right:auto;width:70%;">
-            <label class="control-label col-md-2" for="roads" style="margin-top:7px">Road: </label>
-            <div class="col-md-8">
+            <label class="control-label col-md-1" for="roads" style="margin-top:7px">Road: </label>
+            <div class="col-md-4">
                 <select class="form-control" id="roads"></select>
+            </div>
+            <label class="control-label col-md-1" for="directions" style="margin-top:7px">Direction: </label>
+            <div class="col-md-4">
+                <select class="form-control" id="directions"></select>
             </div>
             <div class="col-md-2">
                 <button class="btn btn-default" id="show_segments">Show Segments</button>
@@ -73,9 +78,27 @@ function initialize(){
         option = "<option value='"+road_list[road_name]+"'>"+road_list[road_name]+"</option>";
         $("#roads").append(option); 
     } 
+
+    $('#roads').trigger('change');
 };
     
 google.maps.event.addDomListener(window, 'load', initialize);
+
+$("#roads").change(function(event) {
+    $("#show_segments").html("Fetching Directions...");
+    $("#show_segments").prop('disabled', 'true');
+    $.get('arterial_pattern_query.php', {"road_name": $("#roads").val()}, function(data) {
+        //document.write(data);
+        $("#directions").find('option').remove();
+        var option;
+        for (var i in data){
+            option = "<option value='"+data[i]+"'>"+data[i]+"</option>";
+            $("#directions").append(option);
+        }  
+        $("#show_segments").html("Show Segments");
+        document.getElementById("show_segments").disabled = false;
+    }, "json");
+});
     
 $("#show_segments").click(function(){
     $("#show_segments").html("Please Wait...");
@@ -83,7 +106,8 @@ $("#show_segments").click(function(){
     $.ajax({
         url: "arterial_pattern_query.php",
         data:{
-            "road_name": $("#roads").val()
+            "road_name": $("#roads").val(),
+            "direction": $('#directions').val()
         },
         type: "GET",
         success: function(output){
@@ -103,7 +127,7 @@ $("#show_segments").click(function(){
     
 function show_result(segments){
     var marker_icon = 'blue_dot.png';
-    var color = randomcolor();
+    var color = "#FF0000";
     for (var m in marker_array){
         marker_array[m].setMap(null);
     }
@@ -129,7 +153,7 @@ function show_result(segments){
         for (var i in path){
             var marker=new google.maps.Marker({
                 position: path[i],
-                icon: marker_icon
+                //icon: marker_icon
             });
 
             marker_array.push(marker);
@@ -151,7 +175,6 @@ function show_result(segments){
         content += "<tr><td>direction: </td><td>" + direction + "</td></tr>";
         content += "<tr><td>road_list: </td><td>" + road_list + "</td></tr>";
         content += "<tr><td>length: </td><td>" + length + " km</td></tr>";
-        content += "<tr><td>direction: </td><td>" + direction + "</td></tr>";
         content += "<tr><td>start_position: </td><td>" + start_lat + ", " + start_lon + "</td></tr>";
         content += "<tr><td>end_position: </td><td>" + end_lat + ", " + end_lon + "</td></tr>";
         content += "<tr><td><label class='control-label' for='#month'>month: </label></td>";
