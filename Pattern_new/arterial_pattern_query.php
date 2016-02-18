@@ -18,15 +18,14 @@
     date_default_timezone_set("America/Los_Angeles");
     $weekday = date("l");
 
-    if (isset($_GET['direction'])):
-        $direction = $_GET['direction'];
-        $sql = "SELECT segment_id, length, direction, road_list, start_lon, start_lat, end_lon, end_lat, month, weekday, inrix_pattern from $pattern_table where segment_id in (select segment_id from $geocode_table where road = '$road_name') and direction = '$direction'";
+    if (isset($_GET['segment_id'])):
+        $segment_id = $_GET['segment_id'];
+        $sql = "SELECT segment_id, length, direction, road_list, start_lon, start_lat, end_lon, end_lat, month, weekday, inrix_pattern from $pattern_table where segment_id = $segment_id";
         $stid = oci_parse($db, $sql);
         $ret = oci_execute($stid, OCI_DEFAULT);
         if(!$ret){
             exit;
         }
-        $segments = array();
         while(($row = oci_fetch_row($stid)) != false){ 
             $segment_id = $row[0]; 
             $length = $row[1]; 
@@ -40,18 +39,41 @@
             $weekday = $row[9];
             $raw_pattern = substr($row[10], strpos($row[10], '{')+1, -2); 
             $day_pattern = explode(",", $raw_pattern);
-            if (!array_key_exists($segment_id, $segments)){
+
+            if (!isset($segment)){
                 $pattern = array();
                 $pattern[$month] = array();
                 $pattern[$month][$weekday] = $day_pattern;
-                $segments[$segment_id] = array($start_lon, $start_lat, $end_lon, $end_lat, $road_name, $length, $direction, $road_list, $pattern);
+                $segment = array($segment_id, $start_lon, $start_lat, $end_lon, $end_lat, $road_name, $length, $direction, $road_list, $pattern);
             }
-            elseif(!array_key_exists($month, $segments[$segment_id][8])){
-                $segments[$segment_id][8][$month] = array();
-                $segments[$segment_id][8][$month][$weekday] = $day_pattern;
+            if(!array_key_exists($month, $segment[9])){
+                $segment[9][$month] = array();
+                $segment[9][$month][$weekday] = $day_pattern;
             }
             else{
-                $segments[$segment_id][8][$month][$weekday] = $day_pattern;
+                $segment[9][$month][$weekday] = $day_pattern;
+            }
+        }   
+        echo json_encode($segment);
+
+
+    elseif (isset($_GET['direction'])):
+        $direction = $_GET['direction'];
+        $sql = "SELECT distinct segment_id, start_lon, start_lat, end_lon, end_lat from $config_table where segment_id in (select segment_id from $geocode_table where road = '$road_name') and direction = '$direction'";
+        $stid = oci_parse($db, $sql);
+        $ret = oci_execute($stid, OCI_DEFAULT);
+        if(!$ret){
+            exit;
+        }
+        $segments = array();
+        while(($row = oci_fetch_row($stid)) != false){ 
+            $segment_id = $row[0]; 
+            $start_lon = $row[1]; 
+            $start_lat = $row[2]; 
+            $end_lon = $row[3]; 
+            $end_lat = $row[4];
+            if (!array_key_exists($segment_id, $segments)){
+                $segments[$segment_id] = array($start_lon, $start_lat, $end_lon, $end_lat);
             }
         }   
         echo json_encode($segments);

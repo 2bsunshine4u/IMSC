@@ -39,11 +39,13 @@
 		$stid = oci_parse($db, $sql);
 		$ret = oci_execute($stid);
 		$row = oci_fetch_row($stid);
-        $lon = ($row[1] + $row[2]) / 2.0;
-        $lat = ($row[3] + $row[4]) / 2.0;
-        echo json_encode(array($row[0], $lon, $lat, $row[5]));
-	    
+		$segment_id = $row[0];
+		$start_lon = $row[1];
+		$end_lon = $row[2];
+		$start_lat = $row[3];
+		$end_lat = $row[4];
 
+        echo json_encode(array($row[0], $start_lon, $start_lat, $end_lon, $end_lat, $row[5]));
 
 	else:
 		$sql = "select max(rn) from $geocode_table";
@@ -67,16 +69,21 @@
 <script type="text/javascript">
 	$(function(){
 		var geocoder = new google.maps.Geocoder;
+		$("p").after("start with rn: <?php echo $max_rn; ?>");
 		writeDB(geocoder, "truncate", "", "", <?php echo $max_rn; ?>);
 	});
 
-	function writeDB(geocoder, segment_id, road, address, rownum){
-		$.post("<?php echo $_SERVER['PHP_SELF']; ?>", {segment_id: segment_id, road: road, address: address, rn: rownum}, function(data) {
-			var latlng = {lat: data[2], lng: data[1]};
-			var rn = data[3];
-			$("p").after("segment_id: "+segment_id+"        road: "+road+"          rn: "+rownum+"<br />");
+	function writeDB(geocoder, segmentid, road, address, rownum){
+		$.post("<?php echo $_SERVER['PHP_SELF']; ?>", {segment_id: segmentid, road: road, address: address, rn: rownum}, function(data) {
+			var segment_id = data[0];
+			var start_latlng = {lat: parseFloat(data[2]), lng: parseFloat(data[1])};
+			var end_latlng = {lat: parseFloat(data[4]), lng: parseFloat(data[3])};
+			var mid_latlng = {lat: (parseFloat(data[2])+parseFloat(data[4]))/2.0, lng: (parseFloat(data[1])+parseFloat(data[3]))/2.0};
+			var rn = data[5];
 			if (data){
-				setTimeout(function(){geocode(geocoder, latlng, data[0], rn);}, 1000);
+				setTimeout(function(){
+					geocode0(geocoder, start_latlng, end_latlng, mid_latlng, segment_id, rn);
+				}, 1000);
 			}
 			else {
 				alert("no data returned from backend!");
@@ -84,17 +91,61 @@
 		}, "json");
 	}
 
-	function geocode(geocoder, latlng, segment_id, rn){
-		geocoder.geocode({'location': latlng}, function(results, status) {
+	function geocode0(geocoder, start_latlng, end_latlng, mid_latlng, segment_id, rn){
+		geocoder.geocode({'location': start_latlng}, function(results, status) {
 			if (status === google.maps.GeocoderStatus.OK) {
       			if (results[0]) {
-      				var address = results[0].formatted_address.split(",")[0];
-      				if (address.indexOf('\'') >= 0){
-      					address = results[0].formatted_address.split(",")[1];
+      				var start_address = results[0].formatted_address.split(",")[0];
+      				console.log(results[0].formatted_address, rn);
+      				var start_road = start_address.replace(/^\s?\d+(-\d+)?\s/g, '');
+
+      				setTimeout(function(){geocode1(geocoder, start_road, start_address, end_latlng, mid_latlng, segment_id, rn);}, 1000);
+				}
+				else {
+        			alert('No results found');
+      			}
+    		} else {
+      			document.write('Geocoder failed due to: ' + status + '<br />');
+      			window.location.reload();
+    		}
+		});
+	}
+
+	function geocode1(geocoder, start_road, start_address, end_latlng, mid_latlng, segment_id, rn){
+		geocoder.geocode({'location': end_latlng}, function(results, status) {
+			if (status === google.maps.GeocoderStatus.OK) {
+      			if (results[0]) {
+      				var end_address = results[0].formatted_address.split(",")[0];
+      				console.log(results[0].formatted_address, rn);
+      				var end_road = end_address.replace(/^\s?\d+(-\d+)?\s/g, '');
+
+      				if (start_road == end_road){
+      					$("p").after("segment_id: "+segment_id+"        road: "+start_road+"          rn: "+rn+"<br />");
+						writeDB(geocoder, segment_id, start_road, start_address, rn);
       				}
-      				console.log(results[0].formatted_address);
-      				road = address.replace(/^\s?\d+(-\d+)?\s/g, '');
-      				writeDB(geocoder, segment_id, road, results[0].formatted_address, rn);
+      				else{
+      					setTimeout(function(){geocode2(geocoder, mid_latlng, segment_id, rn);}, 1000);
+      				}
+				}else {
+        			alert('No results found');
+      			}
+    		} else {
+      			document.write('Geocoder failed due to: ' + status + '<br />');
+      			window.location.reload();
+    		}
+		});
+	}
+
+	function geocode2(geocoder, mid_latlng, segment_id, rn){
+		geocoder.geocode({'location': mid_latlng}, function(results, status) {
+			if (status === google.maps.GeocoderStatus.OK) {
+      			if (results[0]) {
+      				var mid_address = results[0].formatted_address.split(",")[0];
+      				console.log(results[0].formatted_address, rn);
+      				var mid_road = mid_address.replace(/^\s?\d+(-\d+)?\s/g, '');
+
+      				$("p").after("segment_id: "+segment_id+"        road: "+mid_road+"          rn: "+rn+"<br />");
+					writeDB(geocoder, segment_id, mid_road, mid_address, rn);
 				}else {
         			alert('No results found');
       			}

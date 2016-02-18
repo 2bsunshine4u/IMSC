@@ -139,8 +139,8 @@ class Pattern(object):
                     
                     dt -= datetime.timedelta(hours=8)
 
-                    if dt.date() >= datetime.date(dt.year,3,18) and dt.date() <= datetime.date(dt.year,11,1):
-                        dt += datetime.timedelta(hours=1)
+                    //if dt.date() >= datetime.date(dt.year,3,18) and dt.date() <= datetime.date(dt.year,11,1):
+                    //    dt += datetime.timedelta(hours=1)
                     
                     day = dt.weekday()
                     time = dt.time()

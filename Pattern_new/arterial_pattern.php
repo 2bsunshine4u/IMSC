@@ -26,6 +26,7 @@
         $road_name = $row[0]; 
         array_push($roads, $road_name);
     }
+    sort($roads);
 ?>
 <!DOCTYPE html>
 <html>
@@ -74,8 +75,8 @@ function initialize(){
 
     var option;
     //$("#gpx_id").append("<option value='All'>All</option>");
-    for (var road_name in road_list){
-        option = "<option value='"+road_list[road_name]+"'>"+road_list[road_name]+"</option>";
+    for (var i in road_list){
+        option = "<option value='"+road_list[i]+"'>"+road_list[i]+"</option>";
         $("#roads").append(option); 
     } 
 
@@ -113,7 +114,7 @@ $("#show_segments").click(function(){
         success: function(output){
             //document.write(output);
             var data = $.parseJSON(output);
-            show_result(data);
+            show_result(data, $("#roads").val());
             $("#show_segments").html("Show Segments");
             document.getElementById("show_segments").disabled = false;
             map.setCenter(new google.maps.LatLng(34.0500, -118.2500));
@@ -125,7 +126,7 @@ $("#show_segments").click(function(){
     });
 });
     
-function show_result(segments){
+function show_result(segments, road_name){
     var marker_icon = 'blue_dot.png';
     var color = "#FF0000";
     for (var m in marker_array){
@@ -140,11 +141,6 @@ function show_result(segments){
         var start_lat = parseFloat(segments[segment_id][1]);
         var end_lon = parseFloat(segments[segment_id][2]); 
         var end_lat = parseFloat(segments[segment_id][3]); 
-        var road_name = segments[segment_id][4];
-        var length = segments[segment_id][5]; 
-        var direction = segments[segment_id][6];
-        var road_list = segments[segment_id][7];
-        var patterns = segments[segment_id][8];
 
         var start_pt = new google.maps.LatLng(start_lat, start_lon);
         var end_pt = new google.maps.LatLng(end_lat, end_lon);
@@ -169,78 +165,93 @@ function show_result(segments){
 
         marker_array.push(polyline);
         polyline.setMap(map);
-
-        var content = "<table class='table table-condensed table-hover'><tr><td><b>Road: </b></td><td><b>" + road_name + "</b></td></tr>";
-        content += "<tr><td><b>segment_id: </b></td><td><b>" + segment_id + "</b></td></tr>";
-        content += "<tr><td>direction: </td><td>" + direction + "</td></tr>";
-        content += "<tr><td>road_list: </td><td>" + road_list + "</td></tr>";
-        content += "<tr><td>length: </td><td>" + length + " km</td></tr>";
-        content += "<tr><td>start_position: </td><td>" + start_lat + ", " + start_lon + "</td></tr>";
-        content += "<tr><td>end_position: </td><td>" + end_lat + ", " + end_lon + "</td></tr>";
-        content += "<tr><td><label class='control-label' for='#month'>month: </label></td>";
-        content += "<td><select class='form-control' id='month'>";
-        var months = [];
-        for (var m in patterns){
-            months.push(m);
-        }
-        months.sort(function(a,b){
-            var a_arr = a.split(" ");
-            var b_arr = b.split(" ");
-
-            if (a_arr[1] > b_arr[1]){
-                return 1;
-            }
-            else if (a_arr[1] < b_arr[1]){
-                return -1;
-            }
-            else{
-                m_list = ["Jan", "Feb", "Mar", "Apr", "May", "June", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
-                a_idx = m_list.indexOf(a_arr[0]);
-                b_idx = m_list.indexOf(b_arr[0]);
-
-                return a_idx > b_idx? 1 : -1;
-            }
-        });
-        for (m_idx in months){
-            m = months[m_idx];
-            content += "<option value='"+m+"'>"+m+"</option>";
-        }
-        content += "</select></td></tr>";
-        content += "<tr><td><label class='control-label' for='#weekday'>weekday: </label></td>";
-        content += "<td><select class='form-control' id='weekday'>";
-        content += "<option value='Monday'>Monday</option>";
-        content += "<option value='Tuesday'>Tuesday</option>";
-        content += "<option value='Wednesday'>Wednesday</option>";
-        content += "<option value='Thursday'>Thursday</option>";
-        content += "<option value='Friday'>Friday</option>";
-        content += "<option value='Saturday'>Saturday</option>";
-        content += "<option value='Sunday'>Sunday</option></select></td></tr>";
-        content += "<tr><td colspan='2'><canvas id='segment_chart' width='600' height='250' /></td></tr></table>";
-        var mid = new google.maps.LatLng((start_lat+end_lat)/2.0, (start_lon+end_lon)/2.0);
+        
         var month = "Feb 2015";
-        attachMessage(polyline, mid, content, patterns, month, weekday);
+        var mid = new google.maps.LatLng((start_lat+end_lat)/2.0, (start_lon+end_lon)/2.0);
+        attachMessage(polyline, mid, road_name, segment_id, month);
     }
 }
 
     
 var infowindow = new google.maps.InfoWindow({maxWidth:800});
     
-function attachMessage(marker, position, message, patterns, month, weekday) {
+function attachMessage(marker, position, road_name, segment_id, month) {
     marker.addListener('click', function() {
-        infowindow.setContent(message);
-        infowindow.setPosition(position);
-        infowindow.open(marker.get('map'));
-        show_chart(patterns[month][weekday]);
-        $("#weekday option[value='"+weekday+"']").prop('selected', 'selected');
-        $("#month option[value='"+month+"']").prop('selected', 'selected');
-        $("#month").change(function(event) {
-            //document.write($("#weekday").val());
-            show_chart(patterns[$("#month").val()][$("#weekday").val()]);
-        });
-        $("#weekday").change(function(event) {
-            //document.write($("#weekday").val());
-            show_chart(patterns[$("#month").val()][$("#weekday").val()]);
-        });
+        $.get('arterial_pattern_query.php', {'road_name':road_name, 'segment_id': segment_id},function(segment) {
+            //document.write(segment);
+            var start_lon = parseFloat(segment[1]); 
+            var start_lat = parseFloat(segment[2]);
+            var end_lon = parseFloat(segment[3]); 
+            var end_lat = parseFloat(segment[4]); 
+            var road_name = segment[5];
+            var length = segment[6]; 
+            var direction = segment[7];
+            var road_list = segment[8];
+            var patterns = segment[9];
+
+            var content = "<table class='table table-condensed table-hover'><tr><td><b>Road: </b></td><td><b>" + road_name + "</b></td></tr>";
+            content += "<tr><td><b>segment_id: </b></td><td><b>" + segment_id + "</b></td></tr>";
+            content += "<tr><td>direction: </td><td>" + direction + "</td></tr>";
+            content += "<tr><td>road_list: </td><td>" + road_list + "</td></tr>";
+            content += "<tr><td>length: </td><td>" + length + " km</td></tr>";
+            content += "<tr><td>start_position: </td><td>" + start_lat + ", " + start_lon + "</td></tr>";
+            content += "<tr><td>end_position: </td><td>" + end_lat + ", " + end_lon + "</td></tr>";
+            content += "<tr><td><label class='control-label' for='#month'>month: </label></td>";
+            content += "<td><select class='form-control' id='month'>";
+            var months = [];
+            for (var m in patterns){
+                months.push(m);
+            }
+            months.sort(function(a,b){
+                var a_arr = a.split(" ");
+                var b_arr = b.split(" ");
+
+                if (a_arr[1] > b_arr[1]){
+                    return 1;
+                }
+                else if (a_arr[1] < b_arr[1]){
+                    return -1;
+                }
+                else{
+                    m_list = ["Jan", "Feb", "Mar", "Apr", "May", "June", "Jul", "Aug", "Sept", "Oct", "Nov", "Dec"];
+                    a_idx = m_list.indexOf(a_arr[0]);
+                    b_idx = m_list.indexOf(b_arr[0]);
+
+                    return a_idx > b_idx? 1 : -1;
+                }
+            });
+            for (m_idx in months){
+                m = months[m_idx];
+                content += "<option value='"+m+"'>"+m+"</option>";
+            }
+            content += "</select></td></tr>";
+            content += "<tr><td><label class='control-label' for='#weekday'>weekday: </label></td>";
+            content += "<td><select class='form-control' id='weekday'>";
+            content += "<option value='Monday'>Monday</option>";
+            content += "<option value='Tuesday'>Tuesday</option>";
+            content += "<option value='Wednesday'>Wednesday</option>";
+            content += "<option value='Thursday'>Thursday</option>";
+            content += "<option value='Friday'>Friday</option>";
+            content += "<option value='Saturday'>Saturday</option>";
+            content += "<option value='Sunday'>Sunday</option></select></td></tr>";
+            content += "<tr><td colspan='2'><canvas id='segment_chart' width='600' height='250' /></td></tr></table>";
+
+            infowindow.setContent(content);
+            infowindow.setPosition(position);
+            infowindow.open(marker.get('map'));
+            show_chart(patterns[month][weekday]);
+            $("#month").change(function(event) {
+                //document.write($("#weekday").val());
+                show_chart(patterns[$("#month").val()][$("#weekday").val()]);
+            });
+            $("#weekday").change(function(event) {
+                //document.write($("#weekday").val());
+                show_chart(patterns[$("#month").val()][$("#weekday").val()]);
+            });
+            $("#weekday option[value='"+weekday+"']").prop('selected', 'selected');
+            $("#month option[value='"+month+"']").prop('selected', 'selected');
+            $("#month").trigger('change');
+        }, 'json');
     });
 }
 
@@ -269,8 +280,8 @@ function show_chart(pattern){
         ]
     }
     var myNewChart = new Chart(ctx).Line(chart_data, {
-        scaleOverride :false ,   
-        scaleSteps : 11,        
+        scaleOverride : false,   
+        scaleSteps : 8,        
         scaleStepWidth : 10,   
         scaleStartValue : 20,    
         pointDot : true,        
